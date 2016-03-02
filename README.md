@@ -9,6 +9,7 @@ A commandline based tool which enables you to:
 * Delete files from existing SmartApps / DeviceType Handlers
 * Delete entire SmartApps / DeviceType Handlers
 * Download all or parts of a SmartApp / DeviceType Handler
+* Update files in existing SmartApps / DeviceType Handlers
 
 # Requirements
 
