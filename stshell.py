@@ -41,6 +41,7 @@ class STServer:
     URL_PATH['smartapp-editor'] = '/ide/app/editor/'
     URL_PATH['smartapp-delete'] = '/ide/app/deleteResource'
     URL_PATH['smartapp-destroy'] = '/ide/app/delete/'
+    URL_PATH['smartapp-update'] = '/ide/app/compile'
 
     URL_PATH['devicetypes'] = '/ide/devices'
     URL_PATH['devicetype-resources'] = '/ide/device/getResourceList'
@@ -176,6 +177,17 @@ class STServer:
         m = p.match(r.headers["Location"])
 
         return m.group(1)
+
+    def updateSmartAppItem(self, details, smartapp, uuid, content):
+        details = self.getDetail(details, uuid)
+        payload = {"code" : content, "location" : "", "id" : smartapp, "resource" : uuid, "resourceType" : details["type"]}
+        r = self.session.post(self.resolve("smartapp-update"), data=payload)
+        if r.status_code != 200:
+            print "ERROR: Unable to update item"
+            return None
+
+        return r.json()
+
 
     def deleteSmartApp(self, uuid):
         r = self.session.get(self.resolve("smartapp-destroy") + uuid, allow_redirects=False)
@@ -341,7 +353,7 @@ def ArgType(value):
     raise argparse.ArgumentTypeError("Value must be smartapp or devicetype")
 
 def ArgAction(value):
-    accepted = ["list", "contents", "download", "create", "upload", "delete"]
+    accepted = ["list", "contents", "download", "create", "upload", "delete", "update"]
     value = value.lower()
     for x in accepted:
         if x == value:
@@ -533,3 +545,37 @@ elif cmdline.action == "upload":
         sys.stderr.write("OK\n")
     else:
         sys.stderr.write("Failed\n")
+elif cmdline.action == "update":
+    # Bundle UUID, item UUID, new content
+    uuid = cmdline.options[0]
+    item = cmdline.options[1]
+    with open(cmdline.options[2], 'rb') as f:
+        data = f.read()
+
+    if cmdline.type: #DTH
+        details = srv.getDeviceTypeDetails(uuid)
+    else:
+        details = srv.getSmartAppDetails(uuid)
+
+    if item not in details["flat"]:
+        print 'ERROR: Item is not in selected bundle'
+        sys.exit(255)
+
+    sys.stderr.write("Updating content: ")
+    sys.stderr.flush()
+    if cmdline.type: #DTH
+        result = srv.updateDeviceTypeItem(details["details"], uuid, item, data)
+    else:
+        result = srv.updateSmartAppItem(details["details"], uuid, item, data)
+    if "errors" in result and result["errors"]:
+        print "Errors:"
+        for e in result["errors"]:
+            print "  " + e
+    if "output" in result and result["output"]:
+        print "Details:"
+        for o in result["output"]:
+            print "  " + o
+    if not result["errors"] and not result["output"]:
+        print "OK"
+    else:
+        sys.exit(1)

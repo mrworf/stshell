@@ -38,7 +38,7 @@ Downloads the entire smartapp or devicetype into your current folder
 Downloads a part of a smartapp or devicetype into your current folder, use `contents` to get the second UUID
 * `delete <UUID>`
 Deletes an entire smartapp or devicetype. Will ask for confirmation before proceeding
-* `delete <UUID> <UUID>`
+* `delete <UUID> <ITEM>`
 Deletes an item from the smartapp or devicetype. Will ask for confirmation before proceeding
 * `create <groovy file>`
 Creates a new smartapp or devicetype using the provided groovy file
@@ -53,6 +53,10 @@ Uploads the FILE into smartapp or devicetype identified by UUID and tells the se
 and will give an error if you try something else.
 
 The tool will automatically detect conflicts and refuse to upload a file which would overwrite an existing file.
+
+* `update <UUID> <UUID> <FILE>
+Updates an item in a smartapp or devicetype with the contents in FILE. Use `contents` to get the second UUID
+If the update fails, it will print out why.
 
 # Notes
 
