@@ -51,6 +51,7 @@ class STServer:
     URL_PATH['devicetype-delete'] = '/ide/device/deleteResource'
     URL_PATH['devicetype-create'] = '/ide/device/saveFromCode'
     URL_PATH['devicetype-destroy'] = '/ide/device/update'
+    URL_PATH['devicetype-update'] = '/ide/device/compile'
 
     def __init__(self, username, password, baseUrl):
         self.URL_BASE = baseUrl
@@ -188,6 +189,15 @@ class STServer:
 
         return r.json()
 
+    def updateDeviceTypeItem(self, details, device, uuid, content):
+        details = self.getDetail(details, uuid)
+        payload = {"code" : content, "location" : "", "id" : device, "resource" : uuid, "resourceType" : details["type"]}
+        r = self.session.post(self.resolve("devicetype-update"), data=payload)
+        if r.status_code != 200:
+            print "ERROR: Unable to update item"
+            return None
+
+        return r.json()
 
     def deleteSmartApp(self, uuid):
         r = self.session.get(self.resolve("smartapp-destroy") + uuid, allow_redirects=False)
