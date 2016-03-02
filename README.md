@@ -16,4 +16,4 @@ You must have `requests` installed (`pip install requests`)
 
 # Notes
 
-Currently this is just a python class with some helper funcions, within the next week expect to see that change and turn into something a bit more useful.
+Currently this is just a python class with some helper funcions, within the next week expect to see that change and turn into something a bit more useful. However, in the current from, ALL THE LISTED FUNCTIONALITY IS IMPLEMENTED!
