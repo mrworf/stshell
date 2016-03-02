@@ -11,6 +11,7 @@
 # - Delete of individual files or complete SA/DTH
 #
 
+import argparse
 import requests
 import json
 import re
@@ -103,12 +104,12 @@ class STServer:
                 result[i[0]] = {'id' : i[0], 'namespace' : i[1], 'name' : i[2]}
         return result
 
-    def __lister__(self, details, lst):
+    def __lister__(self, details, path, lst):
         for d in details:
             if "id" in d.keys():
-                lst.append(d["id"])
+                lst[d["id"]] = path + "/" + d["text"]
             elif "children" in d.keys():
-                lst = self.__lister__(d["children"], lst)
+                lst = self.__lister__(d["children"], path + "/" + d["text"], lst)
         return lst
 
     def getFileDetails(self, path, uuid):
@@ -117,7 +118,7 @@ class STServer:
         if r.status_code != 200:
             return None
 
-        lst = self.__lister__(r.json(), [])
+        lst = self.__lister__(r.json(), "", {})
 
         return {"details" : r.json(), "flat" : lst }
 
@@ -346,11 +347,96 @@ class STServer:
     def downloadDeviceType(self, uuid, dest):
         return self.downloadBundle(self.TYPE_DTH, uuid, dest)
 
+def ArgType(value):
+    value = value.lower()
+    if value == "smartapp" or value == "sa":
+        return False
+    if value == "device" or value == "devicetype" or value == "dt" or value == "dth":
+        return True
+    raise argparse.ArgumentTypeError("Value must be smartapp or devicetype")
 
+def ArgAction(value):
+    accepted = ["list", "contents", "download"]
+    value = value.lower()
+    for x in accepted:
+        if x == value:
+            return x
+    raise argparse.ArgumentTypeError("Value must be one of " + repr(accepted))
 
-srv = STServer("", "", "https://graph.api.smartthings.com")
+parser = argparse.ArgumentParser(description="ST Shell - Command Line access to SmartThings WebIDE", formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+parser.add_argument('--username', '-u', metavar="EMAIL", help="EMail used for logging into WebIDE")
+parser.add_argument('--password', '-p', help="Password for the account")
+parser.add_argument('--server', default="graph.api.smartthings.com", help="Change server to connect to")
+parser.add_argument('type', type=ArgType, help="Choose what to operate on (smartapp or devicetype)")
+parser.add_argument('action', type=ArgAction, help='One of "list", "contents", "download"')
+parser.add_argument('options', nargs='*', help="Zero or more arguments depending on action")
+cmdline = parser.parse_args()
 
+cfg_username = cmdline.username
+cfg_password = cmdline.password
+
+# Try loading the settings
+try:
+    with open(os.path.expanduser('~/.stshell'), "r") as f:
+        p = re.compile('([^=]+)=(.+)')
+        for line in f:
+            m = p.match(line)
+            if m:
+                if m.group(1) == "username":
+                    cfg_username = m.group(2).strip()
+                elif m.group(1) == "password":
+                    cfg_password = m.group(2).strip()
+                else:
+                    print "Unknown parameter: %s" % (m.group(0))
+except:
+    pass
+
+if cfg_username is None or cfg_password is None:
+    print "ERROR: Username and password cannot be empty"
+    sys.exit(255)
+
+srv = STServer(cfg_username, cfg_password, "https://" + cmdline.server)
 srv.login()
+
+if cmdline.action == "list":
+    if cmdline.type: # DTH
+        types = srv.listDeviceTypes()
+    else:
+        types = srv.listSmartApps()
+    for t in types.values():
+        print "%36s | %s : %s" % (t["id"], t["namespace"], t["name"])
+elif cmdline.action == "contents":
+    if cmdline.type: # DTH
+        contents = srv.getDeviceTypeDetails(cmdline.options[0])
+    else:
+        contents = srv.getSmartAppDetails(cmdline.options[0])
+    for k,v in contents["flat"].iteritems():
+        print "%36s | %s" % (k, v)
+elif cmdline.action == "download":
+    uuid = cmdline.options[0]
+    if len(cmdline.options) == 2: # We are downloading an item from a bundle
+        item = cmdline.options[1]
+    else:
+        item = None
+
+    if cmdline.type: # DTH
+        if item:
+            contents = srv.getDeviceTypeDetails(uuid)
+            data = srv.downloadDeviceTypeItem(uuid, contents["details"], item)
+            with open("./" + data["filename"], "wb") as f:
+                f.write(data["data"])
+        else:
+            srv.downloadDeviceType(uuid, "./")
+    else:
+        if item:
+            contents = srv.getSmartAppDetails(uuid)
+            data = srv.downloadSmartAppItem(uuid, contents["details"], item)
+            with open("./" + data["filename"], "wb") as f:
+                f.write(data["data"])
+        else:
+            srv.downloadSmartApp(uuid, "./")
+
+
 """
 types = srv.listDeviceTypes()
 for t in types.values():
@@ -368,5 +454,5 @@ for t in types.values():
 #srv.uploadDeviceTypeItem(ids['versionid'], "Hello world2", "utter_crap.png", "another", "JAVASCRIPT")
 #result = srv.createDeviceType(data)
 
-print repr(srv.deleteDeviceType(""))
-print repr(srv.deleteSmartApp(""))
+#print repr(srv.deleteDeviceType(""))
+#print repr(srv.deleteSmartApp(""))
