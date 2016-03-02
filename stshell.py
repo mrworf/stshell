@@ -22,12 +22,14 @@ class STServer:
     TYPE_SA = 1
     TYPE_DTH = 2
 
-    UPLOAD_OTHER = 'OTHER'
-    UPLOAD_IMAGE = 'IMAGE'
-    UPLOAD_CSS = 'CSS'
-    UPLOAD_I18N = 'I18N'
-    UPLOAD_JAVASCRIPT = 'JAVASCRIPT'
-    UPLOAD_VIEW = 'VIEW'
+    UPLOAD_TYPE = {
+        'OTHER'     : 'other',
+        'IMAGE'     : 'images',
+        'CSS'       : 'css',
+        'I18N'      : 'i18n',
+        'JAVASCRIPT': 'javascript',
+        'VIEW'      : 'view'
+    }
 
     URL_PATH = {}
     URL_PATH['login'] = '/j_spring_security_check'
@@ -230,23 +232,6 @@ class STServer:
         return False
 
     def getDeviceTypeIds(self, uuid):
-        """
-            var codeModified = false;
-            $(function() {
-                ST.DeviceIDE.init({
-                    url: '/ide/device/',
-                    websocket: 'wss://ic.connect.smartthings.com:8443/',
-                    client: '3f69d079-6b7a-427c-82ea-a7ed718ca7f8',
-                    id: '096f208d-b3e6-451a-a36a-8b379e04d59f'
-                });
-
-                if (codeModified) {
-                    $(".ide-editor").addClass('modified');
-                    $("#save").addClass('btn-primary');
-                    ST.trigger('change.editor');
-                }
-            });
-        """
         r = self.session.get(self.resolve("devicetype-editor") + uuid)
         p = re.compile('ST\.DeviceIDE\.init\(\{.+?url: \'([^\']+)\',.+?websocket: \'([^\']+)\',.+?client: \'([^\']+)\',.+?id: \'([^\']+)\'', re.MULTILINE|re.IGNORECASE|re.DOTALL)
         m = p.search(r.text)
@@ -356,7 +341,7 @@ def ArgType(value):
     raise argparse.ArgumentTypeError("Value must be smartapp or devicetype")
 
 def ArgAction(value):
-    accepted = ["list", "contents", "download"]
+    accepted = ["list", "contents", "download", "create", "upload", "delete"]
     value = value.lower()
     for x in accepted:
         if x == value:
@@ -399,6 +384,7 @@ srv = STServer(cfg_username, cfg_password, "https://" + cmdline.server)
 srv.login()
 
 if cmdline.action == "list":
+    # Lists all SA or DTHs
     if cmdline.type: # DTH
         types = srv.listDeviceTypes()
     else:
@@ -406,6 +392,7 @@ if cmdline.action == "list":
     for t in types.values():
         print "%36s | %s : %s" % (t["id"], t["namespace"], t["name"])
 elif cmdline.action == "contents":
+    # Shows the files inside a SA/DTH
     if cmdline.type: # DTH
         contents = srv.getDeviceTypeDetails(cmdline.options[0])
     else:
@@ -413,6 +400,8 @@ elif cmdline.action == "contents":
     for k,v in contents["flat"].iteritems():
         print "%36s | %s" % (k, v)
 elif cmdline.action == "download":
+    # Downloads an entire bundle or just a single
+    # item if a 2nd argument is provided
     uuid = cmdline.options[0]
     if len(cmdline.options) == 2: # We are downloading an item from a bundle
         item = cmdline.options[1]
@@ -435,24 +424,112 @@ elif cmdline.action == "download":
                 f.write(data["data"])
         else:
             srv.downloadSmartApp(uuid, "./")
+elif cmdline.action == "create":
+    # Creates a new project, requires a groovy file
+    with open(cmdline.options[0], "rb") as f:
+        data = f.read()
+
+    if cmdline.type: # Devicetype
+        result = srv.createDeviceType(data)
+        if result:
+            print "DeviceType Handler %s created" % result
+        else:
+            print "Failed to create DeviceType Handler"
+    else:
+        result = srv.createSmartApp(data)
+        if result:
+            print "SmartApp %s created" % result
+        else:
+            print "Failed to create SmartApp"
+elif cmdline.action == "delete":
+    # Deletes an ENTIRE bundle, will prompt before doing so
+    if cmdline.type: #DTH
+        contents = srv.listDeviceTypes()
+    else:
+        contents = srv.listSmartApps()
+    if not cmdline.options[0] in contents:
+        print "ERROR: No such item"
+        sys.exit(255)
+    else:
+        content = contents[cmdline.options[0]]
+
+    if len(cmdline.options) == 1:
+        sys.stderr.write('Are you SURE you want to delete "%s : %s" (yes/NO) ? ' % (content["namespace"], content["name"]))
+        sys.stderr.flush()
+        choice = sys.stdin.readline().strip().lower()
+        if choice == "yes":
+            sys.stderr.write("Deleting: ")
+            sys.stderr.flush()
+            if cmdline.type: #DTH
+                srv.deleteDeviceType(cmdline.options[0])
+            else:
+                srv.deleteSmartApp(cmdline.options[0])
+            sys.stderr.write("Done\n")
+        else:
+            sys.stderr.write("Aborted\n")
+    elif len(cmdline.options) == 2:
+        if cmdline.type:
+            contents = srv.getDeviceTypeDetails(cmdline.options[0])
+        else:
+            contents = srv.getSmartAppDetails(cmdline.options[0])
+
+        if not cmdline.options[1] in contents["flat"]:
+            print "ERROR: No such item in bundle"
+            sys.exit(255)
+        sys.stderr.write('Are you SURE you want to delete "%s" from "%s : %s" (yes/NO) ? ' % (contents["flat"][cmdline.options[1]], content["namespace"], content["name"]))
+        sys.stderr.flush()
+        choice = sys.stdin.readline().strip().lower()
+        if choice == "yes":
+            sys.stderr.write("Deleting: ")
+            sys.stderr.flush()
+            if cmdline.type: #DTH
+                srv.deleteDeviceTypeItem(cmdline.options[0], cmdline.options[1])
+            else:
+                srv.deleteSmartAppItem(cmdline.options[0], cmdline.options[1])
+            sys.stderr.write("Done\n")
+        else:
+            sys.stderr.write("Aborted\n")
 
 
-"""
-types = srv.listDeviceTypes()
-for t in types.values():
-    result = srv.downloadDeviceType(t["id"], "st-shell/devices/" + t["namespace"] + "/" + t["name"])
+elif cmdline.action == "upload":
+    # Uploads a file into a bundle: <uuid> <type> <path> <filename>
 
-types = srv.listSmartApps()
-for t in types.values():
-    result = srv.downloadSmartApp(t["id"], "st-shell/smartapps/" + t["namespace"] + "/" + t["name"])
-"""
-#srv.createSmartApp(data)
-#srv.uploadContent("19d2016d-2337-46bc-ae0e-143e033d4a63", "Hello world", "junk.txt", "", "OTHER")
-#ids = srv.getSmartAppIds("19d2016d-2337-46bc-ae0e-143e033d4a63")
-#srv.uploadSmartAppItem(ids['versionid'], "Hello world2", "utter_crap.png", "another", "JAVASCRIPT")
-#ids = srv.getDeviceTypeIds("096f208d-b3e6-451a-a36a-8b379e04d59f")
-#srv.uploadDeviceTypeItem(ids['versionid'], "Hello world2", "utter_crap.png", "another", "JAVASCRIPT")
-#result = srv.createDeviceType(data)
+    uuid = cmdline.options[0]
+    kind = cmdline.options[1].strip().upper()
+    path = cmdline.options[2].strip()
+    filename = cmdline.options[3]
+    # Load content and change filename into the basename
+    with open(filename, "rb") as f:
+        data = f.read()
+    filename = os.path.basename(filename)
 
-#print repr(srv.deleteDeviceType(""))
-#print repr(srv.deleteSmartApp(""))
+    if kind not in STServer.UPLOAD_TYPE:
+        print "ERROR: Only certain types are supported: " + repr(STServer.UPLOAD_TYPE)
+        sys.exit(255)
+
+    # Download the list of files so we don't try to overwrite (which won't work as you'd expect)
+    if cmdline.type: #DTH
+        details = srv.getDeviceTypeDetails(uuid)
+    else:
+        details = srv.getSmartAppDetails(uuid)
+
+    prospect = "/%s/%s/%s" % (STServer.UPLOAD_TYPE[kind], path, filename)
+    p = re.compile('/+')
+    prospect = p.sub('/', prospect)
+
+    if prospect in details["flat"].values():
+        print 'ERROR: "%s" already exists. Cannot replace/update files using upload action' % prospect
+        sys.exit(255)
+
+    sys.stderr.write("Uploading content: ")
+    sys.stderr.flush()
+    if cmdline.type: #DTH
+        ids = srv.getDeviceTypeIds(uuid)
+        success = srv.uploadDeviceTypeItem(ids['versionid'], data, filename, path, kind)
+    else:
+        ids = srv.getSmartAppIds(uuid)
+        success = srv.uploadSmartAppItem(ids['versionid'], data, filename, path, kind)
+    if success:
+        sys.stderr.write("OK\n")
+    else:
+        sys.stderr.write("Failed\n")
