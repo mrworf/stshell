@@ -17,6 +17,7 @@ import json
 import re
 import os
 import sys
+import cmd
 
 class STServer:
     TYPE_SA = 1
@@ -374,9 +375,50 @@ parser = argparse.ArgumentParser(description="ST Shell - Command Line access to 
 parser.add_argument('--username', '-u', metavar="EMAIL", help="EMail used for logging into WebIDE")
 parser.add_argument('--password', '-p', help="Password for the account")
 parser.add_argument('--server', default="graph.api.smartthings.com", help="Change server to connect to")
-parser.add_argument('type', type=ArgType, help="Choose what to operate on (smartapp or devicetype)")
-parser.add_argument('action', type=ArgAction, help='One of "list", "contents", "download"')
-parser.add_argument('options', nargs='*', help="Zero or more arguments depending on action")
+
+subparser = parser.add_subparsers()
+
+parser_list = subparser.add_parser('list', help='Lists all smartapps or devicetype handlers')
+parser_list.set_defaults(action="list")
+parser_list.add_argument('KIND', type=str.upper, choices=["SA", "DTH"], help="Choose what to operate on (smartapp or devicetype)")
+
+parser_contents = subparser.add_parser('contents', help='Lists contents of selected bundle')
+parser_contents.set_defaults(action="contents")
+parser_contents.add_argument('KIND', type=str.upper, choices=["SA", "DTH"], help="Choose what to operate on (smartapp or devicetype)")
+parser_contents.add_argument('UUID', help="The UUID of the bundle to view the contents of")
+
+parser_download = subparser.add_parser('download', help='Download an entire bundle or select parts of it')
+parser_download.set_defaults(action="download")
+parser_download.add_argument('KIND', type=str.upper, choices=["SA", "DTH"], help="Choose what to operate on (smartapp or devicetype)")
+parser_download.add_argument('UUID', help="The UUID of the bundle to download")
+parser_download.add_argument('--item', default=None, help="If defined, the UUID of the item inside the bundle to download")
+
+parser_create = subparser.add_parser('create', help="Create a new bundle")
+parser_create.set_defaults(action="create")
+parser_create.add_argument('KIND', type=str.upper, choices=["SA", "DTH"], help="Choose what to operate on (smartapp or devicetype)")
+parser_create.add_argument('FILE', help="Groovy file for a SmartApp or DeviceType to use for creating the bundle")
+
+parser_upload = subparser.add_parser('upload', help='Upload a file to an existing bundle')
+parser_upload.set_defaults(action="upload")
+parser_upload.add_argument('KIND', type=str.upper, choices=["SA", "DTH"], help="Choose what to operate on (smartapp or devicetype)")
+parser_upload.add_argument('UUID', help="The UUID of the bundle")
+parser_upload.add_argument('TYPE', type=str.upper, choices=STServer.UPLOAD_TYPE.keys(), help="What kind of file (determines base folder)")
+parser_upload.add_argument('--path', default="", help="What subpath to place it under")
+parser_upload.add_argument('FILE', help="The file to upload")
+
+parser_delete = subparser.add_parser('delete', help="Delete a bundle or item in a bundle")
+parser_delete.set_defaults(action="delete")
+parser_delete.add_argument('KIND', type=str.upper, choices=["SA", "DTH"], help="Choose what to operate on (smartapp or devicetype)")
+parser_delete.add_argument('UUID', help="The UUID of the bundle to delete (or delete from)")
+parser_delete.add_argument('--item', default=None, help='The item in the bundle to delete')
+
+parser_update = subparser.add_parser('update', help='Update an item in the bundle')
+parser_update.set_defaults(action="update")
+parser_update.add_argument('KIND', type=str.upper, choices=["SA", "DTH"], help="Choose what to operate on (smartapp or devicetype)")
+parser_update.add_argument('UUID', help="The UUID of the bundle to update")
+parser_update.add_argument('ITEM', help='The item in the bundle to update')
+parser_update.add_argument('FILE', help='The changed file to update the item with')
+
 cmdline = parser.parse_args()
 
 cfg_username = cmdline.username
@@ -407,7 +449,7 @@ srv.login()
 
 if cmdline.action == "list":
     # Lists all SA or DTHs
-    if cmdline.type: # DTH
+    if cmdline.KIND == "DTH": # DTH
         types = srv.listDeviceTypes()
     else:
         types = srv.listSmartApps()
@@ -415,43 +457,35 @@ if cmdline.action == "list":
         print "%36s | %s : %s" % (t["id"], t["namespace"], t["name"])
 elif cmdline.action == "contents":
     # Shows the files inside a SA/DTH
-    if cmdline.type: # DTH
-        contents = srv.getDeviceTypeDetails(cmdline.options[0])
+    if cmdline.KIND == "DTH": # DTH
+        contents = srv.getDeviceTypeDetails(cmdline.UUID)
     else:
-        contents = srv.getSmartAppDetails(cmdline.options[0])
+        contents = srv.getSmartAppDetails(cmdline.UUID)
     for k,v in contents["flat"].iteritems():
         print "%36s | %s" % (k, v)
 elif cmdline.action == "download":
-    # Downloads an entire bundle or just a single
-    # item if a 2nd argument is provided
-    uuid = cmdline.options[0]
-    if len(cmdline.options) == 2: # We are downloading an item from a bundle
-        item = cmdline.options[1]
-    else:
-        item = None
-
-    if cmdline.type: # DTH
+    if cmdline.KIND == "DTH": # DTH
         if item:
-            contents = srv.getDeviceTypeDetails(uuid)
-            data = srv.downloadDeviceTypeItem(uuid, contents["details"], item)
+            contents = srv.getDeviceTypeDetails(cmdline.UUID)
+            data = srv.downloadDeviceTypeItem(cmdline.UUID, contents["details"], cmdline.ITEM)
             with open("./" + data["filename"], "wb") as f:
                 f.write(data["data"])
         else:
-            srv.downloadDeviceType(uuid, "./")
+            srv.downloadDeviceType(cmdline.UUID, "./")
     else:
         if item:
-            contents = srv.getSmartAppDetails(uuid)
-            data = srv.downloadSmartAppItem(uuid, contents["details"], item)
+            contents = srv.getSmartAppDetails(cmdline.UUID)
+            data = srv.downloadSmartAppItem(cmdline.UUID, contents["details"], cmdline.ITEM)
             with open("./" + data["filename"], "wb") as f:
                 f.write(data["data"])
         else:
-            srv.downloadSmartApp(uuid, "./")
+            srv.downloadSmartApp(cmdline.UUID, "./")
 elif cmdline.action == "create":
     # Creates a new project, requires a groovy file
-    with open(cmdline.options[0], "rb") as f:
+    with open(cmdline.FILE, "rb") as f:
         data = f.read()
 
-    if cmdline.type: # Devicetype
+    if cmdline.KIND == "DTH": # DTH
         result = srv.createDeviceType(data)
         if result:
             print "DeviceType Handler %s created" % result
@@ -465,77 +499,71 @@ elif cmdline.action == "create":
             print "Failed to create SmartApp"
 elif cmdline.action == "delete":
     # Deletes an ENTIRE bundle, will prompt before doing so
-    if cmdline.type: #DTH
+    if cmdline.KIND == "DTH": # DTH
         contents = srv.listDeviceTypes()
     else:
         contents = srv.listSmartApps()
-    if not cmdline.options[0] in contents:
+    if not cmdline.UUID in contents:
         print "ERROR: No such item"
         sys.exit(255)
     else:
-        content = contents[cmdline.options[0]]
+        content = contents[cmdline.UUID]
 
-    if len(cmdline.options) == 1:
+    if cmdline.ITEM is None:
         sys.stderr.write('Are you SURE you want to delete "%s : %s" (yes/NO) ? ' % (content["namespace"], content["name"]))
         sys.stderr.flush()
         choice = sys.stdin.readline().strip().lower()
         if choice == "yes":
             sys.stderr.write("Deleting: ")
             sys.stderr.flush()
-            if cmdline.type: #DTH
-                srv.deleteDeviceType(cmdline.options[0])
+            if cmdline.KIND == "DTH": # DTH
+                srv.deleteDeviceType(cmdline.UUID)
             else:
-                srv.deleteSmartApp(cmdline.options[0])
+                srv.deleteSmartApp(cmdline.UUID)
             sys.stderr.write("Done\n")
         else:
             sys.stderr.write("Aborted\n")
-    elif len(cmdline.options) == 2:
-        if cmdline.type:
-            contents = srv.getDeviceTypeDetails(cmdline.options[0])
+    else:
+        if cmdline.KIND == "DTH": # DTH
+            contents = srv.getDeviceTypeDetails(cmdline.UUID)
         else:
-            contents = srv.getSmartAppDetails(cmdline.options[0])
+            contents = srv.getSmartAppDetails(cmdline.UUID)
 
-        if not cmdline.options[1] in contents["flat"]:
+        if cmdline.ITEM not in contents["flat"]:
             print "ERROR: No such item in bundle"
             sys.exit(255)
-        sys.stderr.write('Are you SURE you want to delete "%s" from "%s : %s" (yes/NO) ? ' % (contents["flat"][cmdline.options[1]], content["namespace"], content["name"]))
+        sys.stderr.write('Are you SURE you want to delete "%s" from "%s : %s" (yes/NO) ? ' % (contents["flat"][cmdline.ITEM], content["namespace"], content["name"]))
         sys.stderr.flush()
         choice = sys.stdin.readline().strip().lower()
         if choice == "yes":
             sys.stderr.write("Deleting: ")
             sys.stderr.flush()
-            if cmdline.type: #DTH
-                srv.deleteDeviceTypeItem(cmdline.options[0], cmdline.options[1])
+            if cmdline.KIND == "DTH": # DTH
+                srv.deleteDeviceTypeItem(cmdline.UUID, cmdline.ITEM)
             else:
-                srv.deleteSmartAppItem(cmdline.options[0], cmdline.options[1])
+                srv.deleteSmartAppItem(cmdline.UUID, cmdline.ITEM)
             sys.stderr.write("Done\n")
         else:
             sys.stderr.write("Aborted\n")
 
 
 elif cmdline.action == "upload":
-    # Uploads a file into a bundle: <uuid> <type> <path> <filename>
-
-    uuid = cmdline.options[0]
-    kind = cmdline.options[1].strip().upper()
-    path = cmdline.options[2].strip()
-    filename = cmdline.options[3]
     # Load content and change filename into the basename
-    with open(filename, "rb") as f:
+    with open(cmdline.FILE, "rb") as f:
         data = f.read()
-    filename = os.path.basename(filename)
+    filename = os.path.basename(cmdline.FILE)
 
-    if kind not in STServer.UPLOAD_TYPE:
+    if cmdline.TYPE not in STServer.UPLOAD_TYPE:
         print "ERROR: Only certain types are supported: " + repr(STServer.UPLOAD_TYPE)
         sys.exit(255)
 
     # Download the list of files so we don't try to overwrite (which won't work as you'd expect)
-    if cmdline.type: #DTH
-        details = srv.getDeviceTypeDetails(uuid)
+    if cmdline.KIND == "DTH": # DTH
+        details = srv.getDeviceTypeDetails(cmdline.UUID)
     else:
-        details = srv.getSmartAppDetails(uuid)
+        details = srv.getSmartAppDetails(cmdline.UUID)
 
-    prospect = "/%s/%s/%s" % (STServer.UPLOAD_TYPE[kind], path, filename)
+    prospect = "/%s/%s/%s" % (STServer.UPLOAD_TYPE[cmdline.TYPE], cmdline.PATH, filename)
     p = re.compile('/+')
     prospect = p.sub('/', prospect)
 
@@ -545,38 +573,36 @@ elif cmdline.action == "upload":
 
     sys.stderr.write("Uploading content: ")
     sys.stderr.flush()
-    if cmdline.type: #DTH
-        ids = srv.getDeviceTypeIds(uuid)
-        success = srv.uploadDeviceTypeItem(ids['versionid'], data, filename, path, kind)
+    if cmdline.KIND == "DTH": # DTH
+        ids = srv.getDeviceTypeIds(cmdline.UUID)
+        success = srv.uploadDeviceTypeItem(ids['versionid'], data, filename, cmdline.PATH, cmdline.TYPE)
     else:
-        ids = srv.getSmartAppIds(uuid)
-        success = srv.uploadSmartAppItem(ids['versionid'], data, filename, path, kind)
+        ids = srv.getSmartAppIds(cmdline.UUID)
+        success = srv.uploadSmartAppItem(ids['versionid'], data, filename, cmdline.PATH, cmdline.TYPE)
     if success:
         sys.stderr.write("OK\n")
     else:
         sys.stderr.write("Failed\n")
 elif cmdline.action == "update":
     # Bundle UUID, item UUID, new content
-    uuid = cmdline.options[0]
-    item = cmdline.options[1]
-    with open(cmdline.options[2], 'rb') as f:
+    with open(cmdline.FILE, 'rb') as f:
         data = f.read()
 
-    if cmdline.type: #DTH
-        details = srv.getDeviceTypeDetails(uuid)
+    if cmdline.KIND == "DTH": # DTH
+        details = srv.getDeviceTypeDetails(cmdline.UUID)
     else:
-        details = srv.getSmartAppDetails(uuid)
+        details = srv.getSmartAppDetails(cmdline.UUID)
 
-    if item not in details["flat"]:
+    if cmdline.ITEM not in details["flat"]:
         print 'ERROR: Item is not in selected bundle'
         sys.exit(255)
 
     sys.stderr.write("Updating content: ")
     sys.stderr.flush()
-    if cmdline.type: #DTH
-        result = srv.updateDeviceTypeItem(details["details"], uuid, item, data)
+    if cmdline.KIND == "DTH": # DTH
+        result = srv.updateDeviceTypeItem(details["details"], cmdline.UUID, cmdline.ITEM, data)
     else:
-        result = srv.updateSmartAppItem(details["details"], uuid, item, data)
+        result = srv.updateSmartAppItem(details["details"], cmdline.UUID, cmdline.ITEM, data)
     if "errors" in result and result["errors"]:
         print "Errors:"
         for e in result["errors"]:
