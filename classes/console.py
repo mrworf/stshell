@@ -92,7 +92,8 @@ class ConsoleAccess(cmd.Cmd):
             else:
                 found = False
                 for t in self.tree:
-                    if t.startswith(cwd + "/" + part):
+                    search = cwd + "/" + part
+                    if t.startswith(search + "/") or t == search:
                         cwd += "/" + part
                         found = True
                         break
