@@ -20,6 +20,7 @@ class ConsoleAccess(cmd.Cmd):
         pass
 
     def do_refresh(self, line):
+        """ Marks all directories as stale, forcing a reload from server """
         # format:
         # name = "complete/path/to/file.groovy" (also used as key)
         # uuid = "reference to actual file"
@@ -74,7 +75,7 @@ class ConsoleAccess(cmd.Cmd):
             else:
                 print("ERR: Not supported yet (%s)" % base)
 
-    def do_cd(self, line):
+    def resolvePath(self, line):
         error = False
         parts = self.splitPath(line)
         cwd = self.cwd
@@ -103,11 +104,18 @@ class ConsoleAccess(cmd.Cmd):
                 elif cwd in self.tree and self.tree[cwd]["stale"]:
                     self.loadFromServer(cwd)
         if error:
+            return None
+        else:
+            return cwd
+
+    def do_cd(self, line):
+        """ Changes the current folder """
+        cwd = self.resolvePath(line)
+        if cwd is None:
             print "Path not found: " + line
         else:
             self.cwd = cwd
             self.updatePrompt()
-
 
     def printFolderInfo(self, info):
         shown = {}
@@ -124,16 +132,22 @@ class ConsoleAccess(cmd.Cmd):
             print f
 
     def do_ls(self, line):
+        """ Shows the contents of current folder or the one provided as argument """
         folderinfo = []
 
+        if line != "":
+            cwd = self.resolvePath(line)
+        else:
+            cwd = self.cwd
+
         # See if we need to load something from the server
-        self.loadFromServer(self.cwd)
+        self.loadFromServer(cwd)
 
         # Iterate through tree, print all that matches
-        paths = self.splitPath(self.cwd)
+        paths = self.splitPath(cwd)
 
         for t in self.tree:
-            if t.startswith(self.cwd + "/"):
+            if t.startswith(cwd + "/"):
                 parts = self.splitPath(t)
                 folderinfo.append(
                     {"name" : parts[len(paths)],
@@ -145,4 +159,5 @@ class ConsoleAccess(cmd.Cmd):
 
 
     def do_EOF(self, line):
+        """ Exits the console """
         return True
