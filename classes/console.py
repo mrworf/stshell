@@ -1,5 +1,6 @@
 import cmd
 import re
+import sys
 
 class ConsoleAccess(cmd.Cmd):
     def updatePrompt(self):
@@ -11,8 +12,8 @@ class ConsoleAccess(cmd.Cmd):
         self.cwd = ""
         self.tree = {}
         # Prepopulate
-        self.tree["/smartapps"] = {"name" : "/smartapps", "uuid" : None, "type" : None, "stale" : True}
-        self.tree["/devices"] = {"name" : "/devices", "uuid" : None, "type" : None, "stale" : True}
+        self.tree["/smartapps"] = {"name" : "/smartapps", "uuid" : None, "parent" : None, "type" : None, "stale" : True}
+        self.tree["/devices"] = {"name" : "/devices", "uuid" : None, "parent" : None, "type" : None, "stale" : True}
         self.updatePrompt()
 
     def listBundle(self, node):
@@ -29,13 +30,57 @@ class ConsoleAccess(cmd.Cmd):
         pass
 
     def splitPath(self, path):
-        p = re.compile('/+')
-        return p.split(path)
+        path = path.split("/")
+        new = []
+        for p in path:
+            if p:
+                new.append(p)
+        return new
+
+    def loadList(self, base, force=False):
+        if not self.tree[base]["stale"]:
+            return
+
+        if base == "/smartapps":
+            data = self.conn.listSmartApps()
+        elif base == "/devices":
+            data = self.conn.listDeviceTypes()
+
+        self.tree[base]["stale"] = False
+        for d in data.values():
+            filename = base + "/" + d["namespace"] + "/" + d["name"]
+            self.tree[filename] = {"name" : filename, "parent" : None, "uuid" : d["id"], "type" : None, "stale" : True}
+
+    def loadItems(self, base, force=False):
+        entry = self.tree[base]
+        if base.startswith("/smartapps/"):
+            kind = "sa"
+            data = self.conn.getSmartAppDetails(entry["uuid"])
+        elif base.startswith("/devices/"):
+            kind = "dth"
+            data = self.conn.getDeviceTypeDetails(entry["uuid"])
+        for k,v in data["flat"].iteritems():
+            filename = base + v
+            self.tree[filename] = {"name" : filename, "parent" : entry["uuid"], "uuid" : k, "type" : kind, "stale" : True}
+
+        #print repr(data)
+
+    def loadFromServer(self, base, force=False):
+        if base in self.tree:
+            if base == "/smartapps" or base == "/devices":
+                self.loadList(base, force)
+            elif base in self.tree:
+                self.loadItems(base, force)
+            else:
+                print("ERR: Not supported yet (%s)" % base)
 
     def do_cd(self, line):
         error = False
         parts = self.splitPath(line)
         cwd = self.cwd
+        progress = False
+        if line[0] == "/":
+            cwd = ""
         for part in parts:
             paths = self.splitPath(cwd)
             if part == ".." and len(paths):
@@ -54,7 +99,8 @@ class ConsoleAccess(cmd.Cmd):
                 if not found:
                     error = True
                     break
-
+                elif cwd in self.tree and self.tree[cwd]["stale"]:
+                    self.loadFromServer(cwd)
         if error:
             print "Path not found: " + line
         else:
@@ -63,24 +109,34 @@ class ConsoleAccess(cmd.Cmd):
 
 
     def printFolderInfo(self, info):
-        print "total %d" % len(info)
+        shown = {}
         for f in info:
+            if f["name"] in shown:
+                continue
+
             if f["dir"]:
-                print "%s/" % f["name"]
+                shown[f["name"]] = "%s/" % f["name"]
             else:
-                print "%s/" % f["name"]
+                shown[f["name"]] = "%s" % f["name"]
+        print "total %d" % len(shown)
+        for f in shown.values():
+            print f
 
     def do_ls(self, line):
         folderinfo = []
 
+        # See if we need to load something from the server
+        self.loadFromServer(self.cwd)
+
         # Iterate through tree, print all that matches
         paths = self.splitPath(self.cwd)
+
         for t in self.tree:
             if t.startswith(self.cwd + "/"):
                 parts = self.splitPath(t)
                 folderinfo.append(
                     {"name" : parts[len(paths)],
-                    "dir" : len(parts) > len(paths)
+                    "dir" : (len(parts)-1) > len(paths)
                     }
                 )
 
