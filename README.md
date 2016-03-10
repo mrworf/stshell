@@ -21,37 +21,37 @@ of the commands are inspired from this.
 
 Currently, the console mode implements the following commands:
 
-## cd [<directory>]
+### cd [&lt;directory&gt;]
 Changes the current directory or displays the current directory
 
-## ls [<directory>]
+### ls [&lt;directory&gt;]
 Lists the contents of the current directory or the provided one
 
-## lcd [<directory>]
+### lcd [&lt;directory&gt;]
 Same as cd but acts upon the local directory of your terminal
 
-## lls [<directory>]
+### lls [&lt;directory&gt;]
 Same as ls but acts upon the local directory of your terminal
 
-## lmkdir <directory>
+### lmkdir &lt;directory&gt;
 Creates a directory on your local terminal
 
-## get <file|folder>
+### get &lt;file|folder&gt;
 Downloads a file or a complete folder (with subfolders) to your current local directory
 
-## put <file>
+### put &lt;file&gt;
 Uploads a file to the current directory. If the file already exists, it's updated.
 
-## rm <file>
+### rm &lt;file&gt;
 Deletes a file from the current directory.
 
-## rmmod <directory>
+### rmmod &lt;directory&gt;
 Deletes the entire SmartApp or DeviceTypeHandler. This command requires user to acknowledge the operation since it's very dangerous.
 
-## create <local groovy file>
+### create &lt;local groovy file&gt;
 Creates a SmartApp or a DeviceTypeHandler based on the provided groovy file.
 
-# Caveats
+## Caveats
 
 * The console option does not deal gracefully with multiple smartapps or devicetypehandlers named the EXACT SAME THING, so please avoid or use the commandline options instead.
 
