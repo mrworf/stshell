@@ -30,12 +30,23 @@ class ConsoleAccess(cmd.Cmd):
         self.do_cd(self.cwd)
 
     def splitPath(self, path):
+        """ Splits the path into an array of parts """
         path = path.split("/")
         new = []
         for p in path:
             if p:
                 new.append(p)
         return new
+
+    def getParent(self, path):
+        """ Removes one section of the provided path """
+        path = self.splitPath(path)
+        if len(path) < 2:
+            return None
+        result = ""
+        for i in range(0, len(path)-1):
+            result += "/" + path[i]
+        return result
 
     def generateTrail(self, filename, kind=None, parent=None, uuid=None):
         """ Fills in the gaps in the directory structure """
@@ -51,15 +62,17 @@ class ConsoleAccess(cmd.Cmd):
             return
 
         if base == "/smartapps":
+            kind = 'sa'
             data = self.conn.listSmartApps()
         elif base == "/devices":
+            kind = 'dth'
             data = self.conn.listDeviceTypes()
 
         self.tree[base]["stale"] = False
         for d in data.values():
             filename = base + "/" + d["namespace"] + "/" + d["name"]
-            self.tree[filename] = {"name" : filename, "dir" : True, "parent" : d["id"], "uuid" : None, "type" : None, "stale" : True}
-            self.generateTrail(filename)
+            self.tree[filename] = {"name" : filename, "dir" : True, "parent" : d["id"], "uuid" : None, "type" : kind, "stale" : True}
+            self.generateTrail(filename, kind=kind)
 
     def loadItems(self, base, force=False):
         entry = self.tree[base]
@@ -172,6 +185,65 @@ class ConsoleAccess(cmd.Cmd):
     def emptyline(self):
         pass
 
+    def downloadFile(self, item, dstfile):
+        """ Downloads a specific file to dstfile, does NOT create folder structure! """
+        sys.stdout.write('Downloading "%s" ... ' % dstfile)
+        sys.stdout.flush()
+
+        if item["type"] == 'sa':
+            contents = self.conn.getSmartAppDetails(item["parent"])
+            data = self.conn.downloadSmartAppItem(item["parent"], contents["details"], item["uuid"])
+        elif item["type"] == 'dth':
+            contents = self.conn.getDeviceTypeDetails(item["parent"])
+            data = self.conn.downloadDeviceTypeItem(item["parent"], contents["details"], item["uuid"])
+
+        with open(dstfile, "wb") as f:
+            f.write(data["data"])
+
+        print "Done (%d bytes)" % len(data["data"])
+
+    def updateFile(self, item, filename):
+        sys.stdout.write('Updating "%s" ... ' % filename)
+        sys.stdout.flush()
+
+        with open(filename, 'rb') as f:
+            data = f.read()
+
+        result = None
+        if item["type"] == 'sa':
+            contents = self.conn.getSmartAppDetails(item["parent"])
+            result = self.conn.updateSmartAppItem(contents["details"], item["parent"], item["uuid"], data)
+        elif item["type"] == 'dth':
+            contents = self.conn.getDeviceTypeDetails(item["parent"])
+            result = self.conn.updateDeviceTypeItem(contents["details"], item["parent"], item["uuid"], data)
+        if result and not result["errors"] and not result["output"]:
+            print "OK"
+        else:
+            print "Failed"
+        return result
+
+    def uploadFile(self, item, filename, kind, path):
+        """ Uploads a new file to the server """
+        sys.stdout.write('Uploading "%s" ... ' % filename)
+        sys.stdout.flush()
+
+        with open(filename, 'rb') as f:
+            data = f.read()
+
+        result = None
+        print "Uploading %s - %s - %s" % (filename, path, kind)
+        if item["type"] == 'sa':
+            ids = self.conn.getSmartAppIds(item["parent"])
+            success = self.conn.uploadSmartAppItem(ids['versionid'], data, filename, path, kind)
+        elif item["type"] == 'dth':
+            ids = self.conn.getDeviceTypeIds(item["parent"])
+            success = self.conn.uploadDeviceTypeItem(ids['versionid'], data, filename, path, kind)
+        if success:
+            print "OK"
+        else:
+            print "Failed"
+        return success
+
     def do_pwd(self, line):
         """ Shows current folder """
         print('Current folder: "%s/" on %s' % (self.cwd, self.conn.URL_BASE))
@@ -188,36 +260,6 @@ class ConsoleAccess(cmd.Cmd):
         else:
             self.cwd = cwd
             self.updatePrompt()
-
-    def disabled_complete_cd(self, text, line, begidx, endidx):
-        # Text contains whatever partial info the user has tapped
-        print 'DEBUG: Text = "%s", Line = "%s", begidx = "%s", endidx = "%s"' % (text, line, begidx, endidx)
-
-        # Scan tree for a matching item
-        if text != "":
-            cwd = self.resolvePath(text)
-        else:
-            cwd = self.cwd
-
-        if cwd is None:
-            cwd = self.cwd + "/" + text
-
-        print "CWD = " + cwd
-
-        self.loadFromServer(cwd)
-
-        # Iterate through tree, print all that matches
-        paths = self.splitPath(cwd)
-        result = []
-        #print "Looking for " + cwd
-        for t in self.tree:
-            if t.startswith(cwd) and self.tree[t]["uuid"] == None:
-                parts = self.splitPath(t)
-                result.append(parts[len(parts)-1] + "/")
-        return result
-
-    def complete_ls(self, text, line, begidx, endidx):
-        pass
 
     def do_ls(self, line):
         """ Shows the contents of current folder or the one provided as argument """
@@ -259,26 +301,8 @@ class ConsoleAccess(cmd.Cmd):
             if line == "" or line in repr(v):
                 print repr(v)
 
-    def downloadFile(self, item, dstfile):
-        """ Downloads a specific file to dstfile, does NOT create folder structure! """
-        sys.stdout.write('Downloading "%s" ... ' % dstfile)
-        sys.stdout.flush()
-
-        if item["type"] == 'sa':
-            contents = self.conn.getSmartAppDetails(item["parent"])
-            data = self.conn.downloadSmartAppItem(item["parent"], contents["details"], item["uuid"])
-        elif item["type"] == 'dth':
-            contents = self.conn.getDeviceTypeDetails(item["parent"])
-            data = self.conn.downloadDeviceTypeItem(item["parent"], contents["details"], item["uuid"])
-
-        with open(dstfile, "wb") as f:
-            f.write(data["data"])
-
-        print "Done (%d bytes)" % len(data["data"])
-
-
     def do_get(self, line):
-        """ Downloads a file """
+        """ Downloads a file or directory """
         if line[0] == "/":
             filename = line
         else:
@@ -340,6 +364,7 @@ class ConsoleAccess(cmd.Cmd):
         print 'Current local directory: "%s"' % os.getcwd()
 
     def do_lmkdir(self, line):
+        """ Creates a directory locally """
         if line == "":
             print "ERROR: Need directory name"
             return
@@ -349,6 +374,7 @@ class ConsoleAccess(cmd.Cmd):
             print "ERROR: Couldn't create \"%s\"" % line
 
     def do_lls(self, line):
+        """ List the files in the current local directory """
         if line == "":
             cwd = os.getcwd()
         elif line[0] == '/':
@@ -370,6 +396,81 @@ class ConsoleAccess(cmd.Cmd):
             folderinfo.append(info)
 
         self.printFolderInfo(folderinfo)
+
+    def do_put(self, line):
+        """ Upload a file to the current directory, overwrite if already exists """
+
+        # Make sure the file exists
+        dstfile = None
+        srcfile = None
+        if os.path.exists(line) and os.path.isfile(line):
+            dstfile = os.path.basename(line)
+            srcfile = line
+        else:
+            print "ERROR: \"%s\" does not exist" % line
+            return
+
+        # Find out if the user is allowed to upload here
+        if self.cwd != "":
+            dst = self.tree[self.cwd]
+        else:
+            dst = None
+
+        # The simple case...
+        if dst is None or dst["parent"] == None:
+            print "ERROR: You don't have permission to upload here"
+            return
+
+        # Get the base directory and details
+        cwd = self.cwd
+        while self.tree[cwd]["parent"]:
+            prev = cwd
+            cwd = self.getParent(cwd)
+        base = self.tree[prev]
+        dstpath = (self.cwd + '/')[len(base["name"])+1:]
+
+        # We should NOT allow upload in the base directory of a DTH/SA
+        # unless it overwrites the existing groovy file
+        if (self.cwd + '/' + dstfile) not in self.tree:
+            if dstpath == "":
+                print "ERROR: You can only upload the original groovy file here"
+            else:
+                print "WARNING, file doesn't exist yet"
+                # TIme to figure out what type it is
+                parts = self.splitPath(dstpath)
+                kind = None
+                for k,v in self.conn.UPLOAD_TYPE.iteritems():
+                    if v == parts[0]:
+                        kind = k
+                        break
+                if not kind:
+                    print "ERROR: You don't have permission to upload here"
+                    return
+                path = ""
+                for p in parts[1:]:
+                    path += '/' + p
+                if path != "":
+                    path = path[1:]
+                result = self.uploadFile(base, srcfile, kind, path)
+                if result:
+                    # We need to refresh this branch
+                    base["stale"] = True
+                    self.resolvePath(self.cwd)
+
+        else:
+            dst = self.tree[(self.cwd + '/' + dstfile)]
+            result = self.updateFile(dst, srcfile)
+            if result is None:
+                print "Internal error"
+            else:
+                if "errors" in result and result["errors"]:
+                    print "Errors:"
+                    for e in result["errors"]:
+                        print "  " + e
+                if "output" in result and result["output"]:
+                    print "Details:"
+                    for o in result["output"]:
+                        print "  " + o
 
     def do_EOF(self, line):
         """ Exits the console """
