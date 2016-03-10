@@ -244,6 +244,15 @@ class ConsoleAccess(cmd.Cmd):
             print "Failed"
         return success
 
+    def deleteFile(self, item):
+        sys.stdout.write('Deleting "%s" ... ' % os.path.basename(item['name']))
+        sys.stdout.flush()
+        if item["type"] == 'sa':
+            self.conn.deleteSmartAppItem(item['parent'], item['uuid'])
+        elif item['type'] == 'dth':
+            self.conn.deleteDeviceTypeItem(item['parent'], item['uuid'])
+        print "OK"
+
     def do_pwd(self, line):
         """ Shows current folder """
         print('Current folder: "%s/" on %s' % (self.cwd, self.conn.URL_BASE))
@@ -471,6 +480,30 @@ class ConsoleAccess(cmd.Cmd):
                     print "Details:"
                     for o in result["output"]:
                         print "  " + o
+
+    def do_rm(self, line):
+        """ Deletes a file """
+        if line == "":
+            return
+        filename = self.cwd + '/' + line
+        if filename not in self.tree:
+            print "ERROR: No such file \"%s\"" % filename
+            return
+        if self.tree[filename]["dir"]:
+            print "ERROR: Can't delete directory"
+            return
+
+        cwd = self.cwd
+        while self.tree[cwd]["parent"]:
+            prev = cwd
+            cwd = self.getParent(cwd)
+        base = self.tree[prev]
+        dstpath = (self.cwd + '/')[len(base["name"])+1:]
+        if dstpath == "":
+            print "ERROR: This would delete the entire module, aborting"
+            return
+        self.deleteFile(self.tree[filename])
+        self.tree.pop(filename, None)
 
     def do_EOF(self, line):
         """ Exits the console """
