@@ -1,6 +1,7 @@
 import cmd
 import re
 import sys
+import os
 
 class ConsoleAccess(cmd.Cmd):
     def updatePrompt(self):
@@ -170,7 +171,7 @@ class ConsoleAccess(cmd.Cmd):
 
     def do_pwd(self, line):
         """ Shows current folder """
-        print("Current folder: "%s/" on %s" % (self.cwd, self.conn.URL_BASE))
+        print('Current folder: "%s/" on %s' % (self.cwd, self.conn.URL_BASE))
 
     def do_cd(self, line):
         """ Changes the current folder """
@@ -257,7 +258,17 @@ class ConsoleAccess(cmd.Cmd):
 
     def do_get(self, line):
         """ Downloads a file, does not yet support paths """
-        filename = self.cwd + "/" + line
+        if line[0] == "/":
+            filename = line
+        else:
+            filename = self.cwd + "/" + line
+
+        # Make sure we load anything we need to do this
+        path = os.path.dirname(filename)
+        if path != self.cwd:
+            print 'Resolving "%s"' % path
+            self.resolvePath(path)
+
         if filename not in self.tree:
             print 'ERROR: No such file "%s"' % filename
             return
@@ -269,9 +280,18 @@ class ConsoleAccess(cmd.Cmd):
         dstfile = os.path.basename(filename)
         sys.stdout.write('Downloading "%s" ... ' % dstfile)
         sys.stdout.flush()
-        if item["type"] == 'sa':
-            data = self.conn.downloadSmartAppItem(item["parent"], )
 
+        if item["type"] == 'sa':
+            contents = self.conn.getSmartAppDetails(item["parent"])
+            data = self.conn.downloadSmartAppItem(item["parent"], contents["details"], item["uuid"])
+        elif item["type"] == 'dth':
+            contents = self.conn.getDeviceTypeDetails(item["parent"])
+            data = self.conn.downloadDeviceTypeItem(item["parent"], contents["details"], item["uuid"])
+
+        with open(dstfile, "wb") as f:
+            f.write(data["data"])
+
+        print "Done (%d bytes)" % len(data["data"])
 
     def do_EOF(self, line):
         """ Exits the console """
