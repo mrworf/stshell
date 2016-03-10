@@ -112,6 +112,9 @@ class ConsoleAccess(cmd.Cmd):
                     search = cwd + "/" + part
                     if t.startswith(search + "/") or t == search:
                         cwd += "/" + part
+                        if not self.tree[cwd]["dir"]:
+                            error = True
+                            break
                         found = True
                         break
                 if not found:
@@ -256,8 +259,26 @@ class ConsoleAccess(cmd.Cmd):
             if line == "" or line in repr(v):
                 print repr(v)
 
+    def downloadFile(self, item, dstfile):
+        """ Downloads a specific file to dstfile, does NOT create folder structure! """
+        sys.stdout.write('Downloading "%s" ... ' % dstfile)
+        sys.stdout.flush()
+
+        if item["type"] == 'sa':
+            contents = self.conn.getSmartAppDetails(item["parent"])
+            data = self.conn.downloadSmartAppItem(item["parent"], contents["details"], item["uuid"])
+        elif item["type"] == 'dth':
+            contents = self.conn.getDeviceTypeDetails(item["parent"])
+            data = self.conn.downloadDeviceTypeItem(item["parent"], contents["details"], item["uuid"])
+
+        with open(dstfile, "wb") as f:
+            f.write(data["data"])
+
+        print "Done (%d bytes)" % len(data["data"])
+
+
     def do_get(self, line):
-        """ Downloads a file, does not yet support paths """
+        """ Downloads a file """
         if line[0] == "/":
             filename = line
         else:
@@ -273,25 +294,82 @@ class ConsoleAccess(cmd.Cmd):
             print 'ERROR: No such file "%s"' % filename
             return
         item = self.tree[filename]
-        if item["parent"] is None:
-            print 'ERROR: Cannot download "%s", it\'s a directory'
+        if item["dir"]:
+            print 'Downloading directory "%s"' % line
+            # Time to traverse our tree and show what we WOULD be downloading...
+            print "Would download:"
+            size = 0
+            processed = []
+            while len(self.tree) != size:
+                size = len(self.tree)
+                for i in self.tree:
+                    if i in processed:
+                        continue
+
+                    if i.startswith(item["name"]):
+                        self.resolvePath(i)
+                        # Restart if tree changes
+                        if len(self.tree) != size:
+                            break
+                        dstfile = i[len(filename)+1:]
+                        if self.tree[i]["dir"]:
+                            try:
+                                os.makedirs(dstfile)
+                            except:
+                                pass
+                        else:
+                            try:
+                                d = os.path.dirname(dstfile)
+                                os.makedirs(d)
+                            except:
+                                pass
+                            self.downloadFile(self.tree[i], dstfile)
+                        processed.append(i)
+            return
+        else:
+            dstfile = os.path.basename(filename)
+            self.downloadFile(item, dstfile)
+
+    def do_lcd(self, line):
+        """ Change current local directory """
+        if line != "":
+            try:
+                os.chdir(line)
+            except:
+                print "ERROR: Invalid directory"
+        print 'Current local directory: "%s"' % os.getcwd()
+
+    def do_lmkdir(self, line):
+        if line == "":
+            print "ERROR: Need directory name"
+            return
+        try:
+            os.mkdir(line)
+        except:
+            print "ERROR: Couldn't create \"%s\"" % line
+
+    def do_lls(self, line):
+        if line == "":
+            cwd = os.getcwd()
+        elif line[0] == '/':
+            cwd = line
+        else:
+            cwd = os.getcwd() + '/' + line
+
+        try:
+            data = os.listdir(cwd)
+        except:
+            print "ERROR: Invalid directory"
             return
 
-        dstfile = os.path.basename(filename)
-        sys.stdout.write('Downloading "%s" ... ' % dstfile)
-        sys.stdout.flush()
+        folderinfo = []
+        for f in data:
+            info = {"name" : f,
+                    "dir" : os.path.isdir(cwd + "/" + f)
+                    }
+            folderinfo.append(info)
 
-        if item["type"] == 'sa':
-            contents = self.conn.getSmartAppDetails(item["parent"])
-            data = self.conn.downloadSmartAppItem(item["parent"], contents["details"], item["uuid"])
-        elif item["type"] == 'dth':
-            contents = self.conn.getDeviceTypeDetails(item["parent"])
-            data = self.conn.downloadDeviceTypeItem(item["parent"], contents["details"], item["uuid"])
-
-        with open(dstfile, "wb") as f:
-            f.write(data["data"])
-
-        print "Done (%d bytes)" % len(data["data"])
+        self.printFolderInfo(folderinfo)
 
     def do_EOF(self, line):
         """ Exits the console """
