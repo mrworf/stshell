@@ -245,13 +245,23 @@ class ConsoleAccess(cmd.Cmd):
         return success
 
     def deleteFile(self, item):
-        sys.stdout.write('Deleting "%s" ... ' % os.path.basename(item['name']))
+        sys.stdout.write('Deleting file "%s" ... ' % os.path.basename(item['name']))
         sys.stdout.flush()
         if item["type"] == 'sa':
             self.conn.deleteSmartAppItem(item['parent'], item['uuid'])
         elif item['type'] == 'dth':
             self.conn.deleteDeviceTypeItem(item['parent'], item['uuid'])
         print "OK"
+
+    def deleteModule(self, item):
+        sys.stdout.write('Deleting module "%s" ... ' % os.path.basename(item['name']))
+        sys.stdout.flush()
+        if item["type"] == 'sa':
+            self.conn.deleteSmartApp(item['parent'])
+        elif item['type'] == 'dth':
+            self.conn.deleteDeviceType(item['parent'])
+        print "OK"
+
 
     def do_pwd(self, line):
         """ Shows current folder """
@@ -504,6 +514,36 @@ class ConsoleAccess(cmd.Cmd):
             return
         self.deleteFile(self.tree[filename])
         self.tree.pop(filename, None)
+
+    def do_rmmod(self, line):
+        """ Deletes an entire smartapp or devicetype handler, use it on the base folder """
+        if line == "":
+            return
+        filename = self.cwd + '/' + line
+        if filename not in self.tree:
+            print "ERROR: No such module \"%s\"" % filename
+            return
+        if self.tree[filename]['parent'] is None:
+            print "ERROR: Not a module \"%s\"" % filename
+            return
+        parent = self.getParent(filename)
+        if self.tree[parent]['parent'] is not None:
+            print "ERROR: Not a module \"%s\"" % filename
+            return
+        sys.stderr.write('WARNING! This will delete the module "%s", are you sure? (yes/NO) ' % filename)
+        sys.stderr.flush()
+        choice = sys.stdin.readline().strip().lower()
+        if choice == "yes":
+            self.deleteModule(self.tree[filename])
+            # Remove ALL references
+            lst = []
+            for k in self.tree:
+                if k.startswith(filename + '/') or k == filename:
+                    lst.append(k)
+            for l in lst:
+                self.tree.pop(l)
+        else:
+            print "Operation aborted"
 
     def do_EOF(self, line):
         """ Exits the console """
