@@ -20,8 +20,8 @@ from classes.console import ConsoleAccess
 from classes.stshell import STServer
 
 parser = argparse.ArgumentParser(description="ST Shell - Command Line access to SmartThings WebIDE", formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-parser.add_argument('--username', '-u', metavar="EMAIL", help="EMail used for logging into WebIDE")
-parser.add_argument('--password', '-p', help="Password for the account")
+parser.add_argument('-u', '--username', default=None, metavar="EMAIL", help="EMail used for logging into WebIDE")
+parser.add_argument('-p', '--password', default=None, help="Password for the account")
 parser.add_argument('--server', default="graph.api.smartthings.com", help="Change server to connect to")
 
 subparser = parser.add_subparsers()
@@ -72,9 +72,6 @@ parser_console.set_defaults(action='console')
 
 cmdline = parser.parse_args()
 
-cfg_username = cmdline.username
-cfg_password = cmdline.password
-
 # Try loading the settings
 try:
     with open(os.path.expanduser('~/.stshell'), "r") as f:
@@ -91,6 +88,11 @@ try:
 except:
     pass
 
+if cmdline.username is not None:
+    cfg_username = cmdline.username
+if cmdline.password is not None:
+    cfg_password = cmdline.password
+
 if cfg_username is None or cfg_password is None:
     print "ERROR: Username and password cannot be empty"
     sys.exit(255)
@@ -99,10 +101,17 @@ if cmdline.action == "console":
     sys.stderr.write("Logging in...")
     sys.stderr.flush()
 srv = STServer(cfg_username, cfg_password, "https://" + cmdline.server)
-srv.login()
+success = srv.login()
 if cmdline.action == "console":
-    sys.stderr.write("Done\n")
+    if success:
+        sys.stderr.write("Done\n")
+    else:
+        sys.stderr.write("Failed! Invalid credentials?\n")
+        sys.exit(255)
     sys.stderr.flush()
+if not success:
+    print "Failed to login, invalid credentials?"
+    sys.exit(255)
 
 if cmdline.action == "list":
     # Lists all SA or DTHs

@@ -52,10 +52,9 @@ class STServer:
 
     def login(self):
         post = {"j_username" : self.USERNAME, "j_password" : self.PASSWORD}
-        r = self.session.post(self.resolve("login"), data=post, cookies={})
-        if r.status_code == 200 and "JSESSIONID" in self.session.cookies.keys():
+        r = self.session.post(self.resolve("login"), data=post, cookies={}, allow_redirects=False)
+        if r.status_code == 302 and "authfail" not in r.headers["Location"]:
             return True
-        print "ERROR: Failed to login"
         return False
 
     def listSmartApps(self):
