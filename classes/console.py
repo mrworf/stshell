@@ -262,6 +262,24 @@ class ConsoleAccess(cmd.Cmd):
             self.conn.deleteDeviceType(item['parent'])
         print "OK"
 
+    def createModule(self, kind, filename):
+        t = 'SmartApp'
+        if kind == 'dth':
+            t = 'DeviceTypeHandler'
+        sys.stdout.write('Creating %s from "%s" ... ' % (t, os.path.basename(filename)))
+        sys.stdout.flush()
+        with open(filename, "rb") as f:
+            data = f.read()
+        result = None
+        if kind == 'sa':
+            result = self.conn.createSmartApp(data)
+        elif kind == 'dth':
+            result = self.conn.createDeviceType(data)
+        if result:
+            print "OK"
+        else:
+            print "Failed"
+        return result
 
     def do_pwd(self, line):
         """ Shows current folder """
@@ -544,6 +562,29 @@ class ConsoleAccess(cmd.Cmd):
                 self.tree.pop(l)
         else:
             print "Operation aborted"
+
+    def do_create(self, line):
+        """ Creates a new SmartApp or DeviceTypeHandler """
+        if line == "" or not os.path.exists(line):
+            print "ERROR: You must provide groovy file to create new module"
+            return
+        filename = line
+        kind = None
+        if self.cwd == '/smartapps':
+            kind = 'sa'
+        elif self.cwd == '/devices':
+            kind = 'dth'
+        if kind is None:
+            print "ERROR: You cannot create a new module here"
+            return
+        result = self.createModule(kind, filename)
+        if result:
+            # We need to invalidate the cache so user sees the new module
+            if kind == 'sa':
+                self.tree['/smartapps']['stale'] = True
+            else:
+                self.tree['/devices']['stale'] = True
+            self.resolvePath(self.cwd)
 
     def do_EOF(self, line):
         """ Exits the console """
