@@ -28,6 +28,7 @@ class STServer:
     URL_PATH['smartapp-delete'] = '/ide/app/deleteResource'
     URL_PATH['smartapp-destroy'] = '/ide/app/delete/'
     URL_PATH['smartapp-update'] = '/ide/app/compile'
+    URL_PATH['smartapp-publish'] = '/ide/app/publishAjax'
 
     URL_PATH['devicetypes'] = '/ide/devices'
     URL_PATH['devicetype-resources'] = '/ide/device/getResourceList'
@@ -38,6 +39,7 @@ class STServer:
     URL_PATH['devicetype-create'] = '/ide/device/saveFromCode'
     URL_PATH['devicetype-destroy'] = '/ide/device/update'
     URL_PATH['devicetype-update'] = '/ide/device/compile'
+    URL_PATH['devicetype-publish'] = '/ide/device/publishAjax'
 
     def __init__(self, username, password, baseUrl):
         self.URL_BASE = baseUrl
@@ -338,3 +340,17 @@ class STServer:
 
     def downloadDeviceType(self, uuid, dest):
         return self.downloadBundle(self.TYPE_DTH, uuid, dest)
+
+    def publishDeviceType(self, uuid):
+        payload = {"id" : uuid, "scope" : "me"}
+        r = self.session.post(self.resolve('devicetype-publish'), data=payload, allow_redirects=False)
+        if r.status_code == 200:
+            return True
+        return False
+
+    def publishSmartApp(self, uuid):
+        payload = {"id" : uuid, "scope" : "me"}
+        r = self.session.post(self.resolve('smartapp-publish'), data=payload, allow_redirects=False)
+        if r.status_code == 200:
+            return True
+        return False

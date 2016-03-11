@@ -67,6 +67,11 @@ parser_update.add_argument('UUID', help="The UUID of the bundle to update")
 parser_update.add_argument('ITEM', help='The item in the bundle to update')
 parser_update.add_argument('FILE', help='The changed file to update the item with')
 
+parser_publish = subparser.add_parser('publish', help="Publish a SmartApp or DeviceType")
+parser_publish.set_defaults(action="publish")
+parser_publish.add_argument('KIND', type=str.upper, choices=["SA", "DTH"], help="Choose what to operate on (smartapp or devicetype)")
+parser_publish.add_argument('UUID', help="The UUID of the bundle to delete (or delete from)")
+
 parser_console = subparser.add_parser('console', help='Enter console mode')
 parser_console.set_defaults(action='console')
 
@@ -287,3 +292,24 @@ elif cmdline.action == "console":
     console.setConnection(srv)
     console.cmdloop()
     print ""
+elif cmdline.action == "publish":
+    # Deletes an ENTIRE bundle, will prompt before doing so
+    sys.stderr.write("Publishing changes: ")
+    sys.stderr.flush()
+
+    if cmdline.KIND == "DTH": # DTH
+        contents = srv.listDeviceTypes()
+    else:
+        contents = srv.listSmartApps()
+    if not cmdline.UUID in contents:
+        print "ERROR: No such item"
+        sys.exit(255)
+
+    if cmdline.KIND == "DTH":
+        result = srv.publishDeviceType(cmdline.UUID)
+    else:
+        result = srv.publishSmartApp(cmdline.UUID)
+    if result:
+        print "OK"
+    else:
+        print "Failed"

@@ -281,6 +281,20 @@ class ConsoleAccess(cmd.Cmd):
             print "Failed"
         return result
 
+    def publishModule(self, module):
+        sys.stdout.write('Publishing "%s" ... ' % (os.path.basename(module["name"])))
+        sys.stdout.flush()
+        result = None
+        if module["type"] == 'sa':
+            result = self.conn.publishSmartApp(module["parent"])
+        elif module["type"] == 'dth':
+            result = self.conn.publishDeviceType(module["parent"])
+        if result:
+            print "OK"
+        else:
+            print "Failed"
+        return result
+
     def do_pwd(self, line):
         """ Shows current folder """
         print('Current folder: "%s/" on %s' % (self.cwd, self.conn.URL_BASE))
@@ -585,6 +599,27 @@ class ConsoleAccess(cmd.Cmd):
             else:
                 self.tree['/devices']['stale'] = True
             self.resolvePath(self.cwd)
+
+    def do_publish(self, line):
+        """ Publishes changes to a SmartApp or DeviceTypeHandler """
+        if line == "":
+            print "ERROR: You must provide module name"
+            return
+        if line == '.':
+            # Trick, if you stand inside the module, this will publish it
+            module = self.cwd
+        else:
+            module = self.cwd + '/' + line
+
+        if module not in self.tree or self.tree[module]["parent"] is None:
+            print "ERROR: Cannot find module \"%s\"" % line
+            return
+
+        while self.tree[module]["parent"]:
+            prev = module
+            module = self.getParent(module)
+        base = self.tree[prev]
+        self.publishModule(base)
 
     def do_EOF(self, line):
         """ Exits the console """
