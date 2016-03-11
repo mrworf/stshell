@@ -48,6 +48,9 @@ Uploads one or more files (depending on pattern) to the current directory. Shoul
 ### rm &lt;file&gt;
 Deletes a file from the current directory.
 
+### mrm &lt;pattern&gt;
+Deletes zero or more file(s) from the current directory based on the provided pattern.
+
 ### rmmod &lt;directory&gt;
 Deletes the entire SmartApp or DeviceTypeHandler. This command requires user to acknowledge the operation since it's very dangerous.
 

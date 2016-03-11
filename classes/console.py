@@ -3,6 +3,7 @@ import re
 import sys
 import os
 import glob
+import fnmatch
 
 class ConsoleAccess(cmd.Cmd):
     def updatePrompt(self):
@@ -373,7 +374,6 @@ class ConsoleAccess(cmd.Cmd):
         if item["dir"]:
             print 'Downloading directory "%s"' % line
             # Time to traverse our tree and show what we WOULD be downloading...
-            print "Would download:"
             size = 0
             processed = []
             while len(self.tree) != size:
@@ -557,6 +557,26 @@ class ConsoleAccess(cmd.Cmd):
             return
         self.deleteFile(self.tree[filename])
         self.tree.pop(filename, None)
+
+    def do_mrm(self, line):
+        """ Deletes zero or more files from current directory using pattern matching """
+        if line == "":
+            return
+
+        # Build a list of files
+        paths = self.splitPath(self.cwd)
+        lst = []
+        for t in self.tree:
+            if t.startswith(self.cwd + "/"):
+                parts = self.splitPath(t)
+                filename = parts[len(paths)]
+                if not self.tree[self.cwd + "/" + filename]["dir"] and filename not in lst and fnmatch.fnmatch(filename, line):
+                    lst.append(filename)
+        if len(lst) == 0:
+            return
+
+        for e in lst:
+            self.do_rm(e)
 
     def do_rmmod(self, line):
         """ Deletes an entire smartapp or devicetype handler, use it on the base folder """
