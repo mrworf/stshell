@@ -51,15 +51,14 @@ Deletes the entire SmartApp or DeviceTypeHandler. This command requires user to 
 ### create &lt;local groovy file&gt;
 Creates a SmartApp or a DeviceTypeHandler based on the provided groovy file.
 
+### publish &lt;directory&gt;
+Publishes the smartapp or devicetypehandler to which the directory belongs. For short, you can use `.` as the directory name if the current path is within a modules.
+
 ## Caveats
 
 * The console option does not deal gracefully with multiple smartapps or devicetypehandlers named the EXACT SAME THING, so please avoid or use the commandline options instead.
 
-* You cannot publish yet, but this is fortcoming very soon, don't worry
-
 * Wildcard `put` operations don't work yet
-
-* There is no `mkdir` for the server, it will come
 
 * There is no `rmdir` for the server, this is intentionally, since folders are virtual. If no file exists in a folder, they are automatically removed. The console mode emulates a directory structure so it may show empty folders, but they will most likely not show up on the WebIDE.
 

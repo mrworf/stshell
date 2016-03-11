@@ -231,7 +231,6 @@ class ConsoleAccess(cmd.Cmd):
             data = f.read()
 
         result = None
-        print "Uploading %s - %s - %s" % (filename, path, kind)
         if item["type"] == 'sa':
             ids = self.conn.getSmartAppIds(item["parent"])
             success = self.conn.uploadSmartAppItem(ids['versionid'], data, filename, path, kind)
@@ -486,7 +485,6 @@ class ConsoleAccess(cmd.Cmd):
             if dstpath == "":
                 print "ERROR: You can only upload the original groovy file here"
             else:
-                print "WARNING, file doesn't exist yet"
                 # TIme to figure out what type it is
                 parts = self.splitPath(dstpath)
                 kind = None
@@ -620,6 +618,44 @@ class ConsoleAccess(cmd.Cmd):
             module = self.getParent(module)
         base = self.tree[prev]
         self.publishModule(base)
+
+    def do_rmdir(self, line):
+        """ Normally would delete directory, but this is not needed since it's handled automatically """
+        print "INFO: This command has no function since server deals internally with empty directories"
+        return
+
+    def do_mkdir(self, line):
+        """ Create a directory. Please note that if you never place any files in this directory, it will disappear """
+        if line == "":
+            print "ERROR: Need name for new directory"
+            return
+        if '/' in line or '.' in line:
+            print 'ERROR: Cannot create directory outside of current'
+            return
+        if self.cwd != "":
+            dst = self.tree[self.cwd]
+        else:
+            dst = None
+
+        # The simple case...
+        if dst is None or dst["parent"] == None:
+            print "ERROR: You don't have permission to create a directory here"
+            return
+
+        # Get the base directory and details
+        cwd = self.cwd
+        while self.tree[cwd]["parent"]:
+            prev = cwd
+            cwd = self.getParent(cwd)
+        base = self.tree[prev]
+        dstpath = (self.cwd + '/')[len(base["name"])+1:]
+        if dstpath == '':
+            print "ERROR: You don't have permission to create a directory here"
+            return
+
+        filename = self.cwd + '/' + line
+        self.tree[filename] = {"name" : filename, "dir" : True, "parent" : base["parent"], "uuid" : None, "type" : base['type'], "stale" : False}
+        return
 
     def do_EOF(self, line):
         """ Exits the console """
