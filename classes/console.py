@@ -2,6 +2,7 @@ import cmd
 import re
 import sys
 import os
+import glob
 
 class ConsoleAccess(cmd.Cmd):
     def updatePrompt(self):
@@ -458,7 +459,7 @@ class ConsoleAccess(cmd.Cmd):
             srcfile = line
         else:
             print "ERROR: \"%s\" does not exist" % line
-            return
+            return False
 
         # Find out if the user is allowed to upload here
         if self.cwd != "":
@@ -469,7 +470,7 @@ class ConsoleAccess(cmd.Cmd):
         # The simple case...
         if dst is None or dst["parent"] == None:
             print "ERROR: You don't have permission to upload here"
-            return
+            return False
 
         # Get the base directory and details
         cwd = self.cwd
@@ -494,7 +495,7 @@ class ConsoleAccess(cmd.Cmd):
                         break
                 if not kind:
                     print "ERROR: You don't have permission to upload here"
-                    return
+                    return False
                 path = ""
                 for p in parts[1:]:
                     path += '/' + p
@@ -505,7 +506,6 @@ class ConsoleAccess(cmd.Cmd):
                     # We need to refresh this branch
                     base["stale"] = True
                     self.resolvePath(self.cwd)
-
         else:
             dst = self.tree[(self.cwd + '/' + dstfile)]
             result = self.updateFile(dst, srcfile)
@@ -520,6 +520,17 @@ class ConsoleAccess(cmd.Cmd):
                     print "Details:"
                     for o in result["output"]:
                         print "  " + o
+        return True
+
+    def do_mput(self, line):
+        if line == "":
+            return
+        files = glob.glob(line)
+        if len(files) == 0:
+            return
+        for f in files:
+            if not self.do_put(f):
+                break
 
     def do_rm(self, line):
         """ Deletes a file """
