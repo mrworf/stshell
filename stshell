@@ -89,7 +89,7 @@ try:
                 elif m.group(1) == "password":
                     cfg_password = m.group(2).strip()
                 else:
-                    print "Unknown parameter: %s" % (m.group(0))
+                    print("Unknown parameter: %s" % (m.group(0)))
 except:
     pass
 
@@ -99,7 +99,7 @@ if cmdline.password is not None:
     cfg_password = cmdline.password
 
 if cfg_username is None or cfg_password is None:
-    print "ERROR: Username and password cannot be empty"
+    print("ERROR: Username and password cannot be empty")
     sys.exit(255)
 
 if cmdline.action == "console":
@@ -115,7 +115,7 @@ if cmdline.action == "console":
         sys.exit(255)
     sys.stderr.flush()
 if not success:
-    print "Failed to login, invalid credentials?"
+    print("Failed to login, invalid credentials?")
     sys.exit(255)
 
 if cmdline.action == "list":
@@ -125,7 +125,7 @@ if cmdline.action == "list":
     else:
         types = srv.listSmartApps()
     for t in types.values():
-        print "%36s | %s : %s" % (t["id"], t["namespace"], t["name"])
+        print("%36s | %s : %s" % (t["id"], t["namespace"], t["name"]))
 elif cmdline.action == "contents":
     # Shows the files inside a SA/DTH
     if cmdline.KIND == "DTH": # DTH
@@ -133,7 +133,7 @@ elif cmdline.action == "contents":
     else:
         contents = srv.getSmartAppDetails(cmdline.UUID)
     for k,v in contents["flat"].iteritems():
-        print "%36s | %s" % (k, v)
+        print("%36s | %s" % (k, v))
 elif cmdline.action == "download":
     if cmdline.KIND == "DTH": # DTH
         if cmdline.ITEM:
@@ -159,15 +159,15 @@ elif cmdline.action == "create":
     if cmdline.KIND == "DTH": # DTH
         result = srv.createDeviceType(data)
         if result:
-            print "DeviceType Handler %s created" % result
+            print("DeviceType Handler %s created" % result)
         else:
-            print "Failed to create DeviceType Handler"
+            print("Failed to create DeviceType Handler")
     else:
         result = srv.createSmartApp(data)
         if result:
-            print "SmartApp %s created" % result
+            print("SmartApp %s created" % result)
         else:
-            print "Failed to create SmartApp"
+            print("Failed to create SmartApp")
 elif cmdline.action == "delete":
     # Deletes an ENTIRE bundle, will prompt before doing so
     if cmdline.KIND == "DTH": # DTH
@@ -175,7 +175,7 @@ elif cmdline.action == "delete":
     else:
         contents = srv.listSmartApps()
     if not cmdline.UUID in contents:
-        print "ERROR: No such item"
+        print("ERROR: No such item")
         sys.exit(255)
     else:
         content = contents[cmdline.UUID]
@@ -201,7 +201,7 @@ elif cmdline.action == "delete":
             contents = srv.getSmartAppDetails(cmdline.UUID)
 
         if cmdline.ITEM not in contents["flat"]:
-            print "ERROR: No such item in bundle"
+            print("ERROR: No such item in bundle")
             sys.exit(255)
         sys.stderr.write('Are you SURE you want to delete "%s" from "%s : %s" (yes/NO) ? ' % (contents["flat"][cmdline.ITEM], content["namespace"], content["name"]))
         sys.stderr.flush()
@@ -225,7 +225,7 @@ elif cmdline.action == "upload":
     filename = os.path.basename(cmdline.FILE)
 
     if cmdline.TYPE not in STServer.UPLOAD_TYPE:
-        print "ERROR: Only certain types are supported: " + repr(STServer.UPLOAD_TYPE)
+        print("ERROR: Only certain types are supported: " + repr(STServer.UPLOAD_TYPE))
         sys.exit(255)
 
     # Download the list of files so we don't try to overwrite (which won't work as you'd expect)
@@ -239,7 +239,7 @@ elif cmdline.action == "upload":
     prospect = p.sub('/', prospect)
 
     if prospect in details["flat"].values():
-        print 'ERROR: "%s" already exists. Cannot replace/update files using upload action' % prospect
+        print('ERROR: "%s" already exists. Cannot replace/update files using upload action' % prospect)
         sys.exit(255)
 
     sys.stderr.write("Uploading content: ")
@@ -265,7 +265,7 @@ elif cmdline.action == "update":
         details = srv.getSmartAppDetails(cmdline.UUID)
 
     if cmdline.ITEM not in details["flat"]:
-        print 'ERROR: Item is not in selected bundle'
+        print('ERROR: Item is not in selected bundle')
         sys.exit(255)
 
     sys.stderr.write("Updating content: ")
@@ -275,23 +275,23 @@ elif cmdline.action == "update":
     else:
         result = srv.updateSmartAppItem(details["details"], cmdline.UUID, cmdline.ITEM, data)
     if "errors" in result and result["errors"]:
-        print "Errors:"
+        print("Errors:")
         for e in result["errors"]:
-            print "  " + e
+            print("  " + e)
     if "output" in result and result["output"]:
-        print "Details:"
+        print("Details:")
         for o in result["output"]:
-            print "  " + o
+            print("  " + o)
     if not result["errors"] and not result["output"]:
-        print "OK"
+        print("OK")
     else:
         sys.exit(1)
 elif cmdline.action == "console":
-    print "Welcome to STShell's console mode, allowing a FTP like access to the backend"
+    print("Welcome to STShell's console mode, allowing a FTP like access to the backend")
     console = ConsoleAccess()
     console.setConnection(srv)
     console.cmdloop()
-    print ""
+    print("")
 elif cmdline.action == "publish":
     # Deletes an ENTIRE bundle, will prompt before doing so
     sys.stderr.write("Publishing changes: ")
@@ -302,7 +302,7 @@ elif cmdline.action == "publish":
     else:
         contents = srv.listSmartApps()
     if not cmdline.UUID in contents:
-        print "ERROR: No such item"
+        print("ERROR: No such item")
         sys.exit(255)
 
     if cmdline.KIND == "DTH":
@@ -310,6 +310,6 @@ elif cmdline.action == "publish":
     else:
         result = srv.publishSmartApp(cmdline.UUID)
     if result:
-        print "OK"
+        print("OK")
     else:
-        print "Failed"
+        print("Failed")

@@ -29,7 +29,7 @@ class ConsoleAccess(cmd.Cmd):
     def do_refresh(self, line):
         """ Marks all directories as stale, forcing a reload from server """
         # Prepopulate
-        print "Please wait, reloading..."
+        print("Please wait, reloading...")
         self.tree = {}
         self.tree["/smartapps"] = {"name" : "/smartapps", "dir" : True, "uuid" : None, "parent" : None, "type" : None, "stale" : True}
         self.tree["/devices"] = {"name" : "/devices", "dir" : True, "uuid" : None, "parent" : None, "type" : None, "stale" : True}
@@ -99,7 +99,7 @@ class ConsoleAccess(cmd.Cmd):
                 self.generateTrail(filename, kind, entry["parent"])
             entry["stale"] = False # Avoid loading this again
 
-        #print repr(data)
+        #print(repr(data))
 
     def loadFromServer(self, base, force=False):
         if base in self.tree:
@@ -184,9 +184,9 @@ class ConsoleAccess(cmd.Cmd):
                 shown[f["name"]] = "%s/" % f["name"]
             else:
                 shown[f["name"]] = "%s" % f["name"]
-        print "total %d" % len(shown)
+        print("total %d" % len(shown))
         for f in shown.values():
-            print f
+            print(f)
 
     def emptyline(self):
         """ We don't want to repeat the last command """
@@ -212,21 +212,21 @@ class ConsoleAccess(cmd.Cmd):
                 self.cache[item["parent"]] = contents
             if data is None:
                 tries -= 1
-                print "Failed"
-                print "WARNING: Backend didn't find the file, possible file overloading issue."
+                print("Failed")
+                print("WARNING: Backend didn't find the file, possible file overloading issue.")
                 if tries > 0:
-                    print "         Retrying %d times more" % tries
+                    print("         Retrying %d times more" % tries)
             else:
                 break
 
         if data["data"] is None:
-            print "Failed"
+            print("Failed")
             return False
 
         with open(dstfile, "wb") as f:
             f.write(data["data"])
 
-        print "Done (%d bytes)" % len(data["data"])
+        print("Done (%d bytes)" % len(data["data"]))
         return True
 
     def updateFile(self, item, filename):
@@ -244,9 +244,9 @@ class ConsoleAccess(cmd.Cmd):
             contents = self.conn.getDeviceTypeDetails(item["parent"])
             result = self.conn.updateDeviceTypeItem(contents["details"], item["parent"], item["uuid"], data)
         if result and not result["errors"] and not result["output"]:
-            print "OK"
+            print("OK")
         else:
-            print "Failed"
+            print("Failed")
         return result
 
     def uploadFile(self, item, filename, kind, path):
@@ -265,9 +265,9 @@ class ConsoleAccess(cmd.Cmd):
             ids = self.conn.getDeviceTypeIds(item["parent"])
             success = self.conn.uploadDeviceTypeItem(ids['versionid'], data, filename, path, kind)
         if success:
-            print "OK"
+            print("OK")
         else:
-            print "Failed"
+            print("Failed")
         return success
 
     def deleteFile(self, item):
@@ -277,7 +277,7 @@ class ConsoleAccess(cmd.Cmd):
             self.conn.deleteSmartAppItem(item['parent'], item['uuid'])
         elif item['type'] == 'dth':
             self.conn.deleteDeviceTypeItem(item['parent'], item['uuid'])
-        print "OK"
+        print("OK")
 
     def deleteModule(self, item):
         sys.stdout.write('Deleting module "%s" ... ' % os.path.basename(item['name']))
@@ -286,7 +286,7 @@ class ConsoleAccess(cmd.Cmd):
             self.conn.deleteSmartApp(item['parent'])
         elif item['type'] == 'dth':
             self.conn.deleteDeviceType(item['parent'])
-        print "OK"
+        print("OK")
 
     def createModule(self, kind, filename):
         t = 'SmartApp'
@@ -302,9 +302,9 @@ class ConsoleAccess(cmd.Cmd):
         elif kind == 'dth':
             result = self.conn.createDeviceType(data)
         if result:
-            print "OK"
+            print("OK")
         else:
-            print "Failed"
+            print("Failed")
         return result
 
     def publishModule(self, module):
@@ -316,9 +316,9 @@ class ConsoleAccess(cmd.Cmd):
         elif module["type"] == 'dth':
             result = self.conn.publishDeviceType(module["parent"])
         if result:
-            print "OK"
+            print("OK")
         else:
-            print "Failed"
+            print("Failed")
         return result
 
     def do_pwd(self, line):
@@ -333,7 +333,7 @@ class ConsoleAccess(cmd.Cmd):
 
         cwd = self.resolvePath(line)
         if cwd is None:
-            print 'Path not found: "%s"' % line
+            print('Path not found: "%s"' % line)
         else:
             self.cwd = cwd
             self.updatePrompt()
@@ -348,7 +348,7 @@ class ConsoleAccess(cmd.Cmd):
             cwd = self.cwd
 
         if cwd is None:
-            print 'Path not found: "%s"' % line
+            print('Path not found: "%s"' % line)
             return
 
         # See if we need to load something from the server
@@ -373,10 +373,10 @@ class ConsoleAccess(cmd.Cmd):
         return self.do_ls(line)
 
     def do_debug(self, line):
-        print "DEBUG INFO - TREE:"
+        print("DEBUG INFO - TREE:")
         for v in self.tree.values():
             if line == "" or line in repr(v):
-                print repr(v)
+                print(repr(v))
 
     def do_get(self, line):
         """ Downloads a file or directory """
@@ -388,17 +388,17 @@ class ConsoleAccess(cmd.Cmd):
         # Make sure we load anything we need to do this
         path = os.path.dirname(filename)
         if path != self.cwd:
-            print 'Resolving "%s"' % path
+            print('Resolving "%s"' % path)
             self.resolvePath(path)
 
         if filename not in self.tree:
-            print 'ERROR: No such file "%s"' % filename
+            print('ERROR: No such file "%s"' % filename)
             return
         item = self.tree[filename]
         if item["dir"]:
             self.clearCache()
             parentdir = os.path.basename(item['name'])
-            print 'Downloading directory "%s"' % line
+            print('Downloading directory "%s"' % line)
             # Time to traverse our tree and show what we WOULD be downloading...
             size = 0
             processed = []
@@ -441,18 +441,18 @@ class ConsoleAccess(cmd.Cmd):
             try:
                 os.chdir(line)
             except:
-                print "ERROR: Invalid directory"
-        print 'Current local directory: "%s"' % os.getcwd()
+                print("ERROR: Invalid directory")
+        print('Current local directory: "%s"' % os.getcwd())
 
     def do_lmkdir(self, line):
         """ Creates a directory locally """
         if line == "":
-            print "ERROR: Need directory name"
+            print("ERROR: Need directory name")
             return
         try:
             os.mkdir(line)
         except:
-            print "ERROR: Couldn't create \"%s\"" % line
+            print("ERROR: Couldn't create \"%s\"" % line)
 
     def do_lls(self, line):
         """ List the files in the current local directory """
@@ -466,7 +466,7 @@ class ConsoleAccess(cmd.Cmd):
         try:
             data = os.listdir(cwd)
         except:
-            print "ERROR: Invalid directory"
+            print("ERROR: Invalid directory")
             return
 
         folderinfo = []
@@ -488,8 +488,8 @@ class ConsoleAccess(cmd.Cmd):
             dstfile = os.path.basename(line)
             srcfile = line
         else:
-            print "ERROR: \"%s\" does not exist" % line
-            return False
+            print("ERROR: \"%s\" does not exist" % line)
+            return
 
         # Find out if the user is allowed to upload here
         if self.cwd != "":
@@ -499,8 +499,8 @@ class ConsoleAccess(cmd.Cmd):
 
         # The simple case...
         if dst is None or dst["parent"] == None:
-            print "ERROR: You don't have permission to upload here"
-            return False
+            print("ERROR: You don't have permission to upload here")
+            return
 
         # Get the base directory and details
         cwd = self.cwd
@@ -514,7 +514,7 @@ class ConsoleAccess(cmd.Cmd):
         # unless it overwrites the existing groovy file
         if (self.cwd + '/' + dstfile) not in self.tree:
             if dstpath == "":
-                print "ERROR: You can only upload the original groovy file here"
+                print("ERROR: You can only upload the original groovy file here")
             else:
                 # TIme to figure out what type it is
                 parts = self.splitPath(dstpath)
@@ -524,8 +524,8 @@ class ConsoleAccess(cmd.Cmd):
                         kind = k
                         break
                 if not kind:
-                    print "ERROR: You don't have permission to upload here"
-                    return False
+                    print("ERROR: You don't have permission to upload here")
+                    return
                 path = ""
                 for p in parts[1:]:
                     path += '/' + p
@@ -540,17 +540,17 @@ class ConsoleAccess(cmd.Cmd):
             dst = self.tree[(self.cwd + '/' + dstfile)]
             result = self.updateFile(dst, srcfile)
             if result is None:
-                print "Internal error"
+                print("Internal error")
             else:
                 if "errors" in result and result["errors"]:
-                    print "Errors:"
+                    print("Errors:")
                     for e in result["errors"]:
-                        print "  " + e
+                        print("  " + e)
                 if "output" in result and result["output"]:
-                    print "Details:"
+                    print("Details:")
                     for o in result["output"]:
-                        print "  " + o
-        return True
+                        print("  " + o)
+        return
 
     def do_mput(self, line):
         """ Uploads one or more files using wildcards to the current directory """
@@ -560,8 +560,7 @@ class ConsoleAccess(cmd.Cmd):
         if len(files) == 0:
             return
         for f in files:
-            if not self.do_put(f):
-                break
+            self.do_put(f)
 
     def do_rm(self, line):
         """ Deletes a file """
@@ -569,10 +568,10 @@ class ConsoleAccess(cmd.Cmd):
             return
         filename = self.cwd + '/' + line
         if filename not in self.tree:
-            print "ERROR: No such file \"%s\"" % filename
+            print("ERROR: No such file \"%s\"" % filename)
             return
         if self.tree[filename]["dir"]:
-            print "ERROR: Can't delete directory"
+            print("ERROR: Can't delete directory")
             return
 
         cwd = self.cwd
@@ -582,7 +581,7 @@ class ConsoleAccess(cmd.Cmd):
         base = self.tree[prev]
         dstpath = (self.cwd + '/')[len(base["name"])+1:]
         if dstpath == "":
-            print "ERROR: This would delete the entire module, aborting"
+            print("ERROR: This would delete the entire module, aborting")
             return
         self.deleteFile(self.tree[filename])
         self.tree.pop(filename, None)
@@ -613,14 +612,14 @@ class ConsoleAccess(cmd.Cmd):
             return
         filename = self.cwd + '/' + line
         if filename not in self.tree:
-            print "ERROR: No such module \"%s\"" % filename
+            print("ERROR: No such module \"%s\"" % filename)
             return
         if self.tree[filename]['parent'] is None:
-            print "ERROR: Not a module \"%s\"" % filename
+            print("ERROR: Not a module \"%s\"" % filename)
             return
         parent = self.getParent(filename)
         if self.tree[parent]['parent'] is not None:
-            print "ERROR: Not a module \"%s\"" % filename
+            print("ERROR: Not a module \"%s\"" % filename)
             return
         sys.stderr.write('WARNING! This will delete the module "%s", are you sure? (yes/NO) ' % filename)
         sys.stderr.flush()
@@ -635,12 +634,12 @@ class ConsoleAccess(cmd.Cmd):
             for l in lst:
                 self.tree.pop(l)
         else:
-            print "Operation aborted"
+            print("Operation aborted")
 
     def do_create(self, line):
         """ Creates a new SmartApp or DeviceTypeHandler """
         if line == "" or not os.path.exists(line):
-            print "ERROR: You must provide groovy file to create new module"
+            print("ERROR: You must provide groovy file to create new module")
             return
         filename = line
         kind = None
@@ -649,7 +648,7 @@ class ConsoleAccess(cmd.Cmd):
         elif self.cwd == '/devices':
             kind = 'dth'
         if kind is None:
-            print "ERROR: You cannot create a new module here"
+            print("ERROR: You cannot create a new module here")
             return
         result = self.createModule(kind, filename)
         if result:
@@ -663,7 +662,7 @@ class ConsoleAccess(cmd.Cmd):
     def do_publish(self, line):
         """ Publishes changes to a SmartApp or DeviceTypeHandler """
         if line == "":
-            print "ERROR: You must provide module name"
+            print("ERROR: You must provide module name")
             return
         if line == '.':
             # Trick, if you stand inside the module, this will publish it
@@ -672,7 +671,7 @@ class ConsoleAccess(cmd.Cmd):
             module = self.cwd + '/' + line
 
         if module not in self.tree or self.tree[module]["parent"] is None:
-            print "ERROR: Cannot find module \"%s\"" % line
+            print("ERROR: Cannot find module \"%s\"" % line)
             return
 
         while self.tree[module]["parent"]:
@@ -683,16 +682,16 @@ class ConsoleAccess(cmd.Cmd):
 
     def do_rmdir(self, line):
         """ Normally would delete directory, but this is not needed since it's handled automatically """
-        print "INFO: This command has no function since server deals internally with empty directories"
+        print("INFO: This command has no function since server deals internally with empty directories")
         return
 
     def do_mkdir(self, line):
         """ Create a directory. Please note that if you never place any files in this directory, it will disappear """
         if line == "":
-            print "ERROR: Need name for new directory"
+            print("ERROR: Need name for new directory")
             return
         if '/' in line or '.' in line:
-            print 'ERROR: Cannot create directory outside of current'
+            print('ERROR: Cannot create directory outside of current')
             return
         if self.cwd != "":
             dst = self.tree[self.cwd]
@@ -701,7 +700,7 @@ class ConsoleAccess(cmd.Cmd):
 
         # The simple case...
         if dst is None or dst["parent"] == None:
-            print "ERROR: You don't have permission to create a directory here"
+            print("ERROR: You don't have permission to create a directory here")
             return
 
         # Get the base directory and details
@@ -712,7 +711,7 @@ class ConsoleAccess(cmd.Cmd):
         base = self.tree[prev]
         dstpath = (self.cwd + '/')[len(base["name"])+1:]
         if dstpath == '':
-            print "ERROR: You don't have permission to create a directory here"
+            print("ERROR: You don't have permission to create a directory here")
             return
 
         filename = self.cwd + '/' + line

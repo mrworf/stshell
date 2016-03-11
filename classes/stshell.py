@@ -65,7 +65,7 @@ class STServer:
         """
         r = self.session.post(self.resolve("smartapps"))
         if r.status_code != 200:
-            print "ERROR: Failed to get smartapps list"
+            print("ERROR: Failed to get smartapps list")
             return None
 
         apps = re.compile('\<a href="/ide/app/editor/([^"]+)".*?\>\<img .+?\>\s*(.+?)\s*:\s*(.+?)\</a\>', re.MULTILINE|re.IGNORECASE|re.DOTALL)
@@ -83,7 +83,7 @@ class STServer:
         """
         r = self.session.post(self.resolve("devicetypes"))
         if r.status_code != 200:
-            print "ERROR: Failed to get smartapps list"
+            print("ERROR: Failed to get smartapps list")
             return None
 
         apps = re.compile('\<a href="/ide/device/editor/([^"]+)".*?\>\s*(.+?)\s*:\s*(.+?)\</a\>', re.MULTILINE|re.IGNORECASE|re.DOTALL)
@@ -108,8 +108,13 @@ class STServer:
         r = self.session.post(self.resolve(path), params={"id" : uuid})
         if r.status_code != 200:
             return None
-
-        lst = self.__lister__(r.json(), "", {})
+        try:
+            lst = self.__lister__(r.json(), "", {})
+        except:
+            print "FAILURE!"
+            print repr(r)
+            print repr(t.text)
+            sys.exit(255)
 
         return {"details" : r.json(), "flat" : lst }
 
@@ -143,12 +148,12 @@ class STServer:
         """ Downloads the selected item and returns it """
         details = self.getDetail(details, uuid)
         if details is None:
-            print "ERROR: Unable to get details of item " + uuid
+            print("ERROR: Unable to get details of item " + uuid)
             return None
 
         r = self.session.post(self.resolve(path), params={"id" : owner, "resourceId" : uuid, "resourceType" : details["type"]})
         if r.status_code != 200:
-            print "ERROR: Unable to download item"
+            print("ERROR: Unable to download item")
             return None
 
         details["data"] = r.content
@@ -158,7 +163,7 @@ class STServer:
         payload = {"fromCodeType" : "code", "create" : "Create", "content" : content}
         r = self.session.post(self.resolve("smartapp-create"), data=payload, allow_redirects=False)
         if r.status_code != 302:
-            print "ERROR: Unable to create item"
+            print("ERROR: Unable to create item")
             return None
 
         p = re.compile('.*/ide/app/editor/([a-f0-9\-]+)', re.MULTILINE|re.IGNORECASE|re.DOTALL)
@@ -171,7 +176,7 @@ class STServer:
         payload = {"code" : content, "location" : "", "id" : smartapp, "resource" : uuid, "resourceType" : details["type"]}
         r = self.session.post(self.resolve("smartapp-update"), data=payload)
         if r.status_code != 200:
-            print "ERROR: Unable to update item"
+            print("ERROR: Unable to update item")
             return None
 
         return r.json()
@@ -181,7 +186,7 @@ class STServer:
         payload = {"code" : content, "location" : "", "id" : device, "resource" : uuid, "resourceType" : details["type"]}
         r = self.session.post(self.resolve("devicetype-update"), data=payload)
         if r.status_code != 200:
-            print "ERROR: Unable to update item"
+            print("ERROR: Unable to update item")
             return None
 
         return r.json()
@@ -280,7 +285,7 @@ class STServer:
         payload = {"fromCodeType" : "code", "create" : "Create", "content" : content}
         r = self.session.post(self.resolve("devicetype-create"), data=payload, allow_redirects=False)
         if r.status_code != 302:
-            print "ERROR: Unable to create item"
+            print("ERROR: Unable to create item")
             return None
 
         p = re.compile('.*/ide/device/editor/([a-f0-9\-]+)', re.MULTILINE|re.IGNORECASE|re.DOTALL)
@@ -303,13 +308,13 @@ class STServer:
 
     # Convenience, downloads an entire smartapp
     def downloadBundle(self, kind, uuid, dest):
-        print "Downloading bundle..."
+        print("Downloading bundle...")
         if kind == STServer.TYPE_SA:
             data = self.getSmartAppDetails(uuid)
         elif kind == STServer.TYPE_DTH:
             data = self.getDeviceTypeDetails(uuid)
         else:
-            print "ERROR: Unsupported type"
+            print("ERROR: Unsupported type")
             return False
 
         try:
@@ -323,10 +328,10 @@ class STServer:
             elif kind == STServer.TYPE_DTH:
                 content = self.downloadDeviceTypeItem(uuid, data["details"], i)
             if content is None:
-                print "Failed"
+                print("Failed")
             else:
                 filename = dest + content["path"] + "/" + content["filename"]
-                print "OK (%s)" % content["filename"]
+                print("OK (%s)" % content["filename"])
                 try:
                     os.makedirs(dest + content["path"])
                 except:
