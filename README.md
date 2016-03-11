@@ -82,7 +82,3 @@ For improved console (CTRL-R, etc) you can install readline:
 # Usage
 
 Please see `stshell -h` for the most accurate an up-to-date explaination of options.
-
-# Notes
-
-The `console` option is VERY new and is prone to break, right now it can traverse the entire server tree in a FTP like fashion. It implements `ls` and `cd` and soon `get`. It comes with a built-in help, just type `help`
