@@ -184,6 +184,7 @@ class ConsoleAccess(cmd.Cmd):
             print f
 
     def emptyline(self):
+        """ We don't want to repeat the last command """
         pass
 
     def downloadFile(self, item, dstfile):
@@ -523,6 +524,7 @@ class ConsoleAccess(cmd.Cmd):
         return True
 
     def do_mput(self, line):
+        """ Uploads one or more files using wildcards to the current directory """
         if line == "":
             return
         files = glob.glob(line)

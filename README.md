@@ -42,6 +42,9 @@ Downloads a file or a complete folder (with subfolders) to your current local di
 ### put &lt;file&gt;
 Uploads a file to the current directory. If the file already exists, it's updated.
 
+### mput &lt;pattern&gt;
+Uploads one or more files (depending on pattern) to the current directory. Should any file already exist, it's updated.
+
 ### rm &lt;file&gt;
 Deletes a file from the current directory.
 
@@ -57,8 +60,6 @@ Publishes the smartapp or devicetypehandler to which the directory belongs. For 
 ## Caveats
 
 * The console option does not deal gracefully with multiple smartapps or devicetypehandlers named the EXACT SAME THING, so please avoid or use the commandline options instead.
-
-* Wildcard `put` operations don't work yet
 
 * There is no `rmdir` for the server, this is intentionally, since folders are virtual. If no file exists in a folder, they are automatically removed. The console mode emulates a directory structure so it may show empty folders, but they will most likely not show up on the WebIDE.
 
