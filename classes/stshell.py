@@ -9,7 +9,7 @@ class STServer:
     TYPE_DTH = 2
 
     UPLOAD_TYPE = {
-        'OTHER'     : 'other',
+        'OTHER'     : 'src',
         'IMAGE'     : 'images',
         'CSS'       : 'css',
         'I18N'      : 'i18n',
