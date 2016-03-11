@@ -143,7 +143,7 @@ class STServer:
         """ Downloads the selected item and returns it """
         details = self.getDetail(details, uuid)
         if details is None:
-            print "ERROR: Unable to get details of item"
+            print "ERROR: Unable to get details of item " + uuid
             return None
 
         r = self.session.post(self.resolve(path), params={"id" : owner, "resourceId" : uuid, "resourceType" : details["type"]})
