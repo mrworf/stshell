@@ -13,11 +13,15 @@ class ConsoleAccess(cmd.Cmd):
         """ Assigns a STServer Connection to the console """
         self.conn = conn
         self.cwd = ""
+        self.cache = {}
         # Prepopulate
         self.tree = {}
         self.tree["/smartapps"] = {"name" : "/smartapps", "dir" : True, "uuid" : None, "parent" : None, "type" : None, "stale" : True}
         self.tree["/devices"] = {"name" : "/devices", "dir" : True, "uuid" : None, "parent" : None, "type" : None, "stale" : True}
         self.updatePrompt()
+
+    def clearCache(self):
+        self.cache = {}
 
     def listBundle(self, node):
         pass
@@ -188,22 +192,42 @@ class ConsoleAccess(cmd.Cmd):
         """ We don't want to repeat the last command """
         pass
 
-    def downloadFile(self, item, dstfile):
+    def downloadFile(self, item, dstfile, cache=False):
         """ Downloads a specific file to dstfile, does NOT create folder structure! """
-        sys.stdout.write('Downloading "%s" ... ' % dstfile)
-        sys.stdout.flush()
+        tries = 3
 
-        if item["type"] == 'sa':
-            contents = self.conn.getSmartAppDetails(item["parent"])
-            data = self.conn.downloadSmartAppItem(item["parent"], contents["details"], item["uuid"])
-        elif item["type"] == 'dth':
-            contents = self.conn.getDeviceTypeDetails(item["parent"])
-            data = self.conn.downloadDeviceTypeItem(item["parent"], contents["details"], item["uuid"])
+        while tries > 0:
+            sys.stdout.write('Downloading "%s" ... ' % dstfile)
+            sys.stdout.flush()
+
+            if item["type"] == 'sa':
+                contents = self.cache.get(item["parent"], self.conn.getSmartAppDetails(item["parent"]))
+                data = self.conn.downloadSmartAppItem(item["parent"], contents["details"], item["uuid"])
+            elif item["type"] == 'dth':
+                contents = self.cache.get(item["parent"], self.conn.getDeviceTypeDetails(item["parent"]))
+                data = self.conn.downloadDeviceTypeItem(item["parent"], contents["details"], item["uuid"])
+
+            # Store in cache if possible
+            if contents and cache and data:
+                self.cache[item["parent"]] = contents
+            if data is None:
+                tries -= 1
+                print "Failed"
+                print "WARNING: Backend didn't find the file, possible file overloading issue."
+                if tries > 0:
+                    print "         Retrying %d times more" % tries
+            else:
+                break
+
+        if data["data"] is None:
+            print "Failed"
+            return False
 
         with open(dstfile, "wb") as f:
             f.write(data["data"])
 
         print "Done (%d bytes)" % len(data["data"])
+        return True
 
     def updateFile(self, item, filename):
         sys.stdout.write('Updating "%s" ... ' % filename)
@@ -372,6 +396,8 @@ class ConsoleAccess(cmd.Cmd):
             return
         item = self.tree[filename]
         if item["dir"]:
+            self.clearCache()
+            parentdir = os.path.basename(item['name'])
             print 'Downloading directory "%s"' % line
             # Time to traverse our tree and show what we WOULD be downloading...
             size = 0
@@ -387,7 +413,7 @@ class ConsoleAccess(cmd.Cmd):
                         # Restart if tree changes
                         if len(self.tree) != size:
                             break
-                        dstfile = i[len(filename)+1:]
+                        dstfile = parentdir + '/' + i[len(filename)+1:]
                         if self.tree[i]["dir"]:
                             try:
                                 os.makedirs(dstfile)
@@ -399,8 +425,11 @@ class ConsoleAccess(cmd.Cmd):
                                 os.makedirs(d)
                             except:
                                 pass
-                            self.downloadFile(self.tree[i], dstfile)
+                            if not self.downloadFile(self.tree[i], dstfile, cache=True):
+                                self.clearCache()
+                                return
                         processed.append(i)
+            self.clearCache()
             return
         else:
             dstfile = os.path.basename(filename)
