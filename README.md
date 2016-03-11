@@ -60,6 +60,14 @@ Creates a SmartApp or a DeviceTypeHandler based on the provided groovy file.
 ### publish &lt;directory&gt;
 Publishes the smartapp or devicetypehandler to which the directory belongs. For short, you can use `.` as the directory name if the current path is within a modules.
 
+## Scripting it
+
+The console mode can be used for scripting as well, allowing cool things such as:
+
+`echo -e "cd smartapps/mysmartapp/\nput myfile.groovy\npublish ." | ./stshell console`
+
+Which will login to stshell in console mode, go into your smartapp directory and upload a new version of your code. Excellent when you wish to do IDE integrations with it.
+
 ## Caveats
 
 * The console option does not deal gracefully with multiple smartapps or devicetypehandlers named the EXACT SAME THING, so please avoid or use the commandline options instead.
