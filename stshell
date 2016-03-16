@@ -106,6 +106,7 @@ if cmdline.action == "console":
     sys.stderr.write("Logging in...")
     sys.stderr.flush()
 srv = STServer(cfg_username, cfg_password, "https://" + cmdline.server)
+
 success = srv.login()
 if cmdline.action == "console":
     if success:

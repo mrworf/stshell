@@ -14,7 +14,7 @@ class STServer:
         'CSS'       : 'css',
         'I18N'      : 'i18n',
         'JAVASCRIPT': 'javascript',
-        'VIEW'      : 'view'
+        'VIEW'      : 'views'
     }
 
     URL_PATH = {}
@@ -159,11 +159,38 @@ class STServer:
         details["data"] = r.content
         return details
 
+    def extractCreateError(self, content):
+        p = re.compile('\<div class=\"alert alert\-danger alert\-dismissible flash\"\>(.+?)\<\/div\>', re.MULTILINE|re.IGNORECASE|re.DOTALL)
+        m = p.search(content)
+        if m:
+            # Remove any tags
+            p = re.compile('<[^>]+?>.*?</[^>]+?>')
+            res = p.sub("", m.group(1)).strip()
+            return res
+        return None
+
     def createSmartApp(self, content):
         payload = {"fromCodeType" : "code", "create" : "Create", "content" : content}
         r = self.session.post(self.resolve("smartapp-create"), data=payload, allow_redirects=False)
         if r.status_code != 302:
-            print("ERROR: Unable to create item")
+            res = self.extractCreateError(r.text)
+            if not res:
+                res = "Unable to create smartapp (unknown reason)"
+            print("ERROR: %s" % res)
+            """
+<div id="flash-message-container">
+
+
+
+    <div class="inner-wrap">
+        <div class="alert alert-danger alert-dismissible flash">
+            <button type="button" class="close" data-dismiss="alert">&times;</button>
+            Metadata Error: Parent SmartApp 'SamsungDA:Samsung Home' not found
+        </div>
+    </div>
+
+</div>
+            """
             return None
 
         p = re.compile('.*/ide/app/editor/([a-f0-9\-]+)', re.MULTILINE|re.IGNORECASE|re.DOTALL)
