@@ -63,6 +63,20 @@ class ConsoleAccess(cmd.Cmd):
             if cd not in self.tree:
                 self.tree[cd] = {"name" : cd, "uuid" : uuid, "parent" : parent, "type" : kind, "stale" : False, "dir" : True}
 
+    def sanitizeName(self, name):
+        """Replaces invalid characters in the provided name"""
+        rpl = { "/" : "-", "(" : "-", ")" : "-", " " : "-" }
+        for f,t in rpl.iteritems():
+            name = name.replace(f, t)
+
+        # Get rid of multiple dashes in a row
+        p = re.compile('\-+')
+        name = p.sub("-", name)
+        if name[-1:] == '-':
+            name = name[:-1]
+
+        return name.lower()
+
     def loadList(self, base, force=False):
         if not self.tree[base]["stale"]:
             return
@@ -76,7 +90,7 @@ class ConsoleAccess(cmd.Cmd):
 
         self.tree[base]["stale"] = False
         for d in data.values():
-            filename = base + "/" + d["namespace"] + "/" + d["name"]
+            filename = base + "/" + self.sanitizeName(d["namespace"]) + "/" + self.sanitizeName(d["name"]) + ".src"
             self.tree[filename] = {"name" : filename, "dir" : True, "parent" : d["id"], "uuid" : None, "type" : kind, "stale" : True}
             self.generateTrail(filename, kind=kind)
 
@@ -185,7 +199,8 @@ class ConsoleAccess(cmd.Cmd):
             else:
                 shown[f["name"]] = "%s" % f["name"]
         print("total %d" % len(shown))
-        for f in shown.values():
+
+        for f in sorted(shown.values()):
             print(f)
 
     def emptyline(self):
