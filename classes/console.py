@@ -17,7 +17,7 @@ class ConsoleAccess(cmd.Cmd):
         # Prepopulate
         self.tree = {}
         self.tree["/smartapps"] = {"name" : "/smartapps", "dir" : True, "uuid" : None, "parent" : None, "type" : None, "stale" : True}
-        self.tree["/devices"] = {"name" : "/devices", "dir" : True, "uuid" : None, "parent" : None, "type" : None, "stale" : True}
+        self.tree["/devicetypes"] = {"name" : "/devicetypes", "dir" : True, "uuid" : None, "parent" : None, "type" : None, "stale" : True}
         self.updatePrompt()
 
     def clearCache(self):
@@ -32,7 +32,7 @@ class ConsoleAccess(cmd.Cmd):
         print("Please wait, reloading...")
         self.tree = {}
         self.tree["/smartapps"] = {"name" : "/smartapps", "dir" : True, "uuid" : None, "parent" : None, "type" : None, "stale" : True}
-        self.tree["/devices"] = {"name" : "/devices", "dir" : True, "uuid" : None, "parent" : None, "type" : None, "stale" : True}
+        self.tree["/devicetypes"] = {"name" : "/devicetypes", "dir" : True, "uuid" : None, "parent" : None, "type" : None, "stale" : True}
         self.do_cd(self.cwd)
 
     def splitPath(self, path):
@@ -78,13 +78,16 @@ class ConsoleAccess(cmd.Cmd):
         return name.lower()
 
     def loadList(self, base, force=False):
+        """
+        Populate the tree with list of SA/DTH
+        """
         if not self.tree[base]["stale"]:
             return
 
         if base == "/smartapps":
             kind = 'sa'
             data = self.conn.listSmartApps()
-        elif base == "/devices":
+        elif base == "/devicetypes":
             kind = 'dth'
             data = self.conn.listDeviceTypes()
 
@@ -95,12 +98,15 @@ class ConsoleAccess(cmd.Cmd):
             self.generateTrail(filename, kind=kind)
 
     def loadItems(self, base, force=False):
+        """
+        Populates the tree with files from the SA/DTH
+        """
         entry = self.tree[base]
         if entry["stale"]:
             if base.startswith("/smartapps/"):
                 kind = "sa"
                 data = self.conn.getSmartAppDetails(entry["parent"])
-            elif base.startswith("/devices/"):
+            elif base.startswith("/devicetypes/"):
                 kind = "dth"
                 data = self.conn.getDeviceTypeDetails(entry["parent"])
             for k,v in data["flat"].iteritems():
@@ -116,8 +122,13 @@ class ConsoleAccess(cmd.Cmd):
         #print(repr(data))
 
     def loadFromServer(self, base, force=False):
+        """
+        Populate the tree with data from the server. Depending on the base
+        path, it will either load the list of SA/DTH or the contents of the
+        SA/DTH
+        """
         if base in self.tree:
-            if base == "/smartapps" or base == "/devices":
+            if base == "/smartapps" or base == "/devicetypes":
                 self.loadList(base, force)
             elif base in self.tree:
                 self.loadItems(base, force)
@@ -125,6 +136,11 @@ class ConsoleAccess(cmd.Cmd):
                 print("ERR: Not supported yet (%s)" % base)
 
     def resolvePath(self, line):
+        """
+        Takes a path (absolute or relative) and tries to load the necessary
+        server information in order to resolve it. If it can, it returns the
+        complete (absolute) path, it not, it returns None.
+        """
         error = False
         parts = self.splitPath(line)
         cwd = self.cwd
@@ -159,34 +175,6 @@ class ConsoleAccess(cmd.Cmd):
             return None
         else:
             return cwd
-
-    def partialPath(self, line):
-        error = False
-        parts = self.splitPath(line)
-        cwd = self.cwd
-        progress = False
-        results = []
-        if line[0] == "/":
-            cwd = ""
-        for part in parts:
-            paths = self.splitPath(cwd)
-            if part == ".." and len(paths):
-                cwd = ""
-                for i in range(0, len(paths)-1):
-                    cwd += "/" + paths[i]
-            elif part == "..":
-                break
-            else:
-                found = False
-                for t in self.tree:
-                    search = cwd + "/" + part
-                    if t.startswith(search):
-                        results.append(t)
-                        found = True
-                if found and cwd in self.tree and self.tree[cwd]["stale"]:
-                    self.loadFromServer(cwd)
-
-        return results
 
     def printFolderInfo(self, info):
         shown = {}
@@ -272,6 +260,8 @@ class ConsoleAccess(cmd.Cmd):
         with open(filename, 'rb') as f:
             data = f.read()
 
+        # Make sure we don't get a path in that thing
+        filename = os.path.basename(filename)
         result = None
         if item["type"] == 'sa':
             ids = self.conn.getSmartAppIds(item["parent"])
@@ -298,10 +288,14 @@ class ConsoleAccess(cmd.Cmd):
         sys.stdout.write('Deleting module "%s" ... ' % os.path.basename(item['name']))
         sys.stdout.flush()
         if item["type"] == 'sa':
-            self.conn.deleteSmartApp(item['parent'])
+            res = self.conn.deleteSmartApp(item['parent'])
         elif item['type'] == 'dth':
-            self.conn.deleteDeviceType(item['parent'])
-        print("OK")
+            res = self.conn.deleteDeviceType(item['parent'])
+        if res:
+            print("OK")
+        else:
+            print("Failed")
+        return res
 
     def createModule(self, kind, filename):
         t = 'SmartApp'
@@ -493,22 +487,20 @@ class ConsoleAccess(cmd.Cmd):
 
         self.printFolderInfo(folderinfo)
 
-    def do_put(self, line):
-        """ Upload a file to the current directory, overwrite if already exists """
-
+    def put(self, filename, dest):
         # Make sure the file exists
         dstfile = None
         srcfile = None
-        if os.path.exists(line) and os.path.isfile(line):
-            dstfile = os.path.basename(line)
-            srcfile = line
+        if os.path.exists(filename) and os.path.isfile(filename):
+            dstfile = os.path.basename(filename)
+            srcfile = filename
         else:
             print("ERROR: \"%s\" does not exist" % line)
             return
 
         # Find out if the user is allowed to upload here
-        if self.cwd != "":
-            dst = self.tree[self.cwd]
+        if dest != "":
+            dst = self.tree[dest]
         else:
             dst = None
 
@@ -518,16 +510,16 @@ class ConsoleAccess(cmd.Cmd):
             return
 
         # Get the base directory and details
-        cwd = self.cwd
+        cwd = dest
         while self.tree[cwd]["parent"]:
             prev = cwd
             cwd = self.getParent(cwd)
         base = self.tree[prev]
-        dstpath = (self.cwd + '/')[len(base["name"])+1:]
+        dstpath = (dest + '/')[len(base["name"])+1:]
 
         # We should NOT allow upload in the base directory of a DTH/SA
         # unless it overwrites the existing groovy file
-        if (self.cwd + '/' + dstfile) not in self.tree:
+        if (dest + '/' + dstfile) not in self.tree:
             if dstpath == "":
                 print("ERROR: You can only upload the original groovy file here")
             else:
@@ -550,9 +542,9 @@ class ConsoleAccess(cmd.Cmd):
                 if result:
                     # We need to refresh this branch
                     base["stale"] = True
-                    self.resolvePath(self.cwd)
+                    self.resolvePath(dest)
         else:
-            dst = self.tree[(self.cwd + '/' + dstfile)]
+            dst = self.tree[(dest + '/' + dstfile)]
             result = self.updateFile(dst, srcfile)
             if result is None:
                 print("Internal error")
@@ -567,15 +559,9 @@ class ConsoleAccess(cmd.Cmd):
                         print("  " + o)
         return
 
-    def do_mput(self, line):
-        """ Uploads one or more files using wildcards to the current directory """
-        if line == "":
-            return
-        files = glob.glob(line)
-        if len(files) == 0:
-            return
-        for f in files:
-            self.do_put(f)
+    def do_put(self, line):
+        """ Upload a file to the current directory, overwrite if already exists """
+        self.put(line, self.cwd)
 
     def do_rm(self, line):
         """ Deletes a file """
@@ -640,14 +626,14 @@ class ConsoleAccess(cmd.Cmd):
         sys.stderr.flush()
         choice = sys.stdin.readline().strip().lower()
         if choice == "yes":
-            self.deleteModule(self.tree[filename])
-            # Remove ALL references
-            lst = []
-            for k in self.tree:
-                if k.startswith(filename + '/') or k == filename:
-                    lst.append(k)
-            for l in lst:
-                self.tree.pop(l)
+            if self.deleteModule(self.tree[filename]):
+                # Remove ALL references
+                lst = []
+                for k in self.tree:
+                    if k.startswith(filename + '/') or k == filename:
+                        lst.append(k)
+                for l in lst:
+                    self.tree.pop(l)
         else:
             print("Operation aborted")
 
@@ -658,9 +644,9 @@ class ConsoleAccess(cmd.Cmd):
             return
         filename = line
         kind = None
-        if self.cwd == '/smartapps':
+        if self.cwd.startswith('/smartapps'):
             kind = 'sa'
-        elif self.cwd == '/devices':
+        elif self.cwd.startswith('/devicetypes'):
             kind = 'dth'
         if kind is None:
             print("ERROR: You cannot create a new module here")
@@ -671,7 +657,7 @@ class ConsoleAccess(cmd.Cmd):
             if kind == 'sa':
                 self.tree['/smartapps']['stale'] = True
             else:
-                self.tree['/devices']['stale'] = True
+                self.tree['/devicetypes']['stale'] = True
             self.resolvePath(self.cwd)
 
     def do_publish(self, line):
@@ -700,38 +686,98 @@ class ConsoleAccess(cmd.Cmd):
         print("INFO: This command has no function since server deals internally with empty directories")
         return
 
-    def do_mkdir(self, line):
-        """ Create a directory. Please note that if you never place any files in this directory, it will disappear """
+    def mkdir(self, line):
         if line == "":
             print("ERROR: Need name for new directory")
             return
         if '/' in line or '.' in line:
-            print('ERROR: Cannot create directory outside of current')
-            return
-        if self.cwd != "":
-            dst = self.tree[self.cwd]
+            base = os.path.dirname(line)
+            new = os.path.basename(line)
+            if base[0] == "/":
+                path = self.resolvePath(base)
+            else:
+                path = self.resolvePath(self.cwd + '/' + base)
+        else:
+            new = line
+            path = self.cwd
+
+        if path is None:
+            print('ERROR: Invalid path "%s"' % line)
+            return False
+        else:
+            line = new
+
+        if path != "":
+            dst = self.tree[path]
         else:
             dst = None
 
         # The simple case...
         if dst is None or dst["parent"] == None:
             print("ERROR: You don't have permission to create a directory here")
-            return
+            return False
 
         # Get the base directory and details
-        cwd = self.cwd
+        cwd = path
         while self.tree[cwd]["parent"]:
             prev = cwd
             cwd = self.getParent(cwd)
         base = self.tree[prev]
-        dstpath = (self.cwd + '/')[len(base["name"])+1:]
+        dstpath = (path + '/')[len(base["name"])+1:]
         if dstpath == '':
             print("ERROR: You don't have permission to create a directory here")
-            return
+            return False
 
-        filename = self.cwd + '/' + line
+        filename = path + '/' + line
         self.tree[filename] = {"name" : filename, "dir" : True, "parent" : base["parent"], "uuid" : None, "type" : base['type'], "stale" : False}
-        return
+        return True
+
+    def do_mkdir(self, line):
+        """ Create a directory. Please note that if you never place any files in this directory, it will disappear """
+        self.mkdir(line)
+
+    def recursivePut(self, srcpath, dstpath):
+        """
+        Will go through the directory and upload all files found. Any directory will be
+        created and uploaded recursively.
+        """
+        if not self.mkdir(dstpath):
+            print("Unable to create directory, skipping \"%s\"" % srcpath)
+            return
+        files = os.listdir(srcpath)
+        for f in files:
+            filename = srcpath + '/' + f
+            if os.path.isfile(filename):
+                self.put(filename, dstpath)
+            elif os.path.isdir(filename):
+                self.recursivePut(filename, dstpath + '/' + f)
+
+    def do_mput(self, line):
+        """ Uploads one or more files using wildcards to the current directory. If given '-r' as the first argument, it will recurse through ALL subfolders found """
+        if line == "":
+            return
+        recursive = False
+        if line.startswith("-r "):
+            sys.stderr.write("WARNING! This will cause mput to create folders and upload the contents there-in. Continue? (yes/NO) ")
+            sys.stderr.flush()
+            choice = sys.stdin.readline().strip().lower()
+            if choice != "yes":
+                print "Aborted"
+                return
+            line = line[3:].strip()
+            recursive = True
+
+        files = glob.glob(line)
+        if len(files) == 0:
+            return
+        for f in files:
+            if os.path.isfile(f):
+                self.put(f, self.cwd)
+            elif os.path.isdir(f):
+                if recursive:
+                    self.recursivePut(f, self.cwd + '/' + f)
+                else:
+                    print('Skipping "%s" since it\'s a directory' % f)
 
     def do_EOF(self, line):
         """ Exits the console """

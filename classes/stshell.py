@@ -159,7 +159,7 @@ class STServer:
         details["data"] = r.content
         return details
 
-    def extractCreateError(self, content):
+    def extractErrorMessage(self, content):
         p = re.compile('\<div class=\"alert alert\-danger alert\-dismissible flash\"\>(.+?)\<\/div\>', re.MULTILINE|re.IGNORECASE|re.DOTALL)
         m = p.search(content)
         if m:
@@ -173,24 +173,10 @@ class STServer:
         payload = {"fromCodeType" : "code", "create" : "Create", "content" : content}
         r = self.session.post(self.resolve("smartapp-create"), data=payload, allow_redirects=False)
         if r.status_code != 302:
-            res = self.extractCreateError(r.text)
+            res = self.extractErrorMessage(r.text)
             if not res:
                 res = "Unable to create smartapp (unknown reason)"
             print("ERROR: %s" % res)
-            """
-<div id="flash-message-container">
-
-
-
-    <div class="inner-wrap">
-        <div class="alert alert-danger alert-dismissible flash">
-            <button type="button" class="close" data-dismiss="alert">&times;</button>
-            Metadata Error: Parent SmartApp 'SamsungDA:Samsung Home' not found
-        </div>
-    </div>
-
-</div>
-            """
             return None
 
         p = re.compile('.*/ide/app/editor/([a-f0-9\-]+)', re.MULTILINE|re.IGNORECASE|re.DOTALL)
@@ -222,6 +208,11 @@ class STServer:
         r = self.session.get(self.resolve("smartapp-destroy") + uuid, allow_redirects=False)
         if r.status_code == 302:
             return True
+        elif r.status_code == 200:
+            err = self.extractErrorMessage(r.text)
+            if err is None:
+                err = "Sorry, unknown error, please check from WebIDE"
+            print("ERROR: %s" % err)
         return False
 
     def getSmartAppIds(self, uuid):
@@ -312,7 +303,10 @@ class STServer:
         payload = {"fromCodeType" : "code", "create" : "Create", "content" : content}
         r = self.session.post(self.resolve("devicetype-create"), data=payload, allow_redirects=False)
         if r.status_code != 302:
-            print("ERROR: Unable to create item")
+            res = self.extractErrorMessage(r.text)
+            if not res:
+                res = "Unable to create devicetype (unknown reason)"
+            print("ERROR: %s" % res)
             return None
 
         p = re.compile('.*/ide/device/editor/([a-f0-9\-]+)', re.MULTILINE|re.IGNORECASE|re.DOTALL)
@@ -325,6 +319,11 @@ class STServer:
         r = self.session.post(self.resolve('devicetype-destroy'), data=payload, allow_redirects=False)
         if r.status_code == 302:
             return True
+        elif r.status_code == 200:
+            err = self.extractErrorMessage(r.text)
+            if err is None:
+                err = "Sorry, unknown error, please check from WebIDE"
+            print("ERROR: %s" % err)
         return False
 
     def downloadSmartAppItem(self, smartapp, details, uuid):
