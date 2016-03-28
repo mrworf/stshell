@@ -6,11 +6,25 @@
 # allowing the following:
 #
 # - Create SA/DTH
-# - Upload of individual files to SA/DTH
-# - Download of individual files and complete SA/DTH
-# - Delete of individual files or complete SA/DTH
+# - Upload one or more files to SA/DTH
+# - Download one or more files and complete SA/DTH
+# - Delete one or more files or complete SA/DTH
+# - Programmatic interface
+# - FTP like interface.
 #
-
+# STShell is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 2 of the License, or
+# (at your option) any later version.
+#
+# STShell is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with STShell.  If not, see <http://www.gnu.org/licenses/>.
+#
 import argparse
 import os
 import sys
@@ -289,6 +303,7 @@ elif cmdline.action == "update":
         sys.exit(1)
 elif cmdline.action == "console":
     print("Welcome to STShell's console mode, allowing a FTP like access to the backend")
+    print('Type "help" to get a list of commands, "help <command>" for details')
     console = ConsoleAccess()
     console.setConnection(srv)
     console.cmdloop()
